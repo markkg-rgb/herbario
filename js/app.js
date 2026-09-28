@@ -392,15 +392,26 @@
     const sabidas = lista.filter((e) => estaSabida(e.id)).length;
     const r = racha();
     const estudiadoHoy = ls.get("diasEstudio", []).includes(numeroDeDia());
+    const recQuiz = ls.get("recordQuiz", null);
+    const icono = {
+      hoja: `<svg viewBox="0 0 24 24"><path d="M5 20c0-9 5-14 14-15-1 9-6 14-14 15zM5 20l7-7"/></svg>`,
+      fuego: `<svg viewBox="0 0 24 24"><path d="M12 3c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-3.5 2-5 .8 1.2 1.3 2 2.2 2.3C11 8 11.3 5.5 12 3z"/></svg>`,
+      pin: `<svg viewBox="0 0 24 24"><path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/></svg>`,
+      copa: `<svg viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 3M16 6h3a3 3 0 0 1-3 3M12 13v4M9 20h6"/></svg>`,
+    };
     cont.innerHTML = `
       <div class="progreso-tarjeta">
-        <div class="progreso-cifras">
-          <div><b>${sabidas}<small>/${lista.length}</small></b><span>especies que te sabes</span></div>
-          <div><b>${r}</b><span>${r === 1 ? "día" : "días"} de racha${estudiadoHoy ? "" : r ? " · ¡estudia hoy!" : ""}</span></div>
+        <div class="progreso-cab"><strong>Tu progreso</strong><span>${sabidas === lista.length && lista.length ? "¡Te las sabes todas!" : estudiadoHoy ? "Hoy ya has estudiado ✓" : "Aún no has estudiado hoy"}</span></div>
+        <div class="casillas">
+          <div class="casilla"><i>${icono.hoja}</i><span>Te sabes</span><b>${sabidas}<small>/${lista.length}</small></b></div>
+          <div class="casilla"><i>${icono.fuego}</i><span>Racha</span><b>${r}<small> ${r === 1 ? "día" : "días"}</small></b></div>
+          <div class="casilla"><i>${icono.pin}</i><span>Hallazgos</span><b id="n-hallazgos">–</b></div>
+          <div class="casilla"><i>${icono.copa}</i><span>Quiz</span><b>${recQuiz ?? "–"}<small>${recQuiz != null ? "/10" : ""}</small></b></div>
         </div>
         <div class="progreso"><div style="width:${lista.length ? (sabidas / lista.length) * 100 : 0}%"></div></div>
-        <p>${sabidas === lista.length && lista.length ? "¡Te las sabes todas!" : "Una especie cuenta como sabida cuando la aciertas 2 veces en los juegos (y la última vez, bien)."}</p>
+        <p>Una especie cuenta como sabida cuando la aciertas 2 veces en los juegos y la última vez bien.</p>
       </div>`;
+    hallazgosTodos().then((l) => { const el = $("#n-hallazgos"); if (el) el.textContent = l.length; });
   }
 
   /* =========================================================
@@ -431,6 +442,8 @@
   function renderInicio() {
     const hoy = new Date();
     $("#hoy").textContent = hoy.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+    const h = hoy.getHours();
+    $("#saludo").textContent = h < 6 ? "Buenas noches," : h < 14 ? "Buenos días," : h < 21 ? "Buenas tardes," : "Buenas noches,";
     const e = especieDelDia();
     const giro = $("#giro");
     if (!e) { giro.hidden = true; return; }
@@ -702,11 +715,10 @@
         <div class="rejilla-plantas">
           ${es.map((e, n) => `
             <article class="planta" data-id="${esc(e.id)}" tabindex="0" style="--i:${n}">
-              ${estaSabida(e.id) ? `<span class="marca-sabida" title="Te la sabes">${ICONO.check}</span>` : ""}
               ${htmlFoto(e, "planta", e.nombres.lat)}
               <h3>${esc(e.nombres.ca)}</h3>
-              <p>${esc(e.nombres.es)}</p>
               <p class="lat">${esc(e.nombres.lat)}</p>
+              <p class="estado ${estaSabida(e.id) ? "si" : ""}">${estaSabida(e.id) ? "Te la sabes" : "Por aprender"}</p>
             </article>`).join("")}
         </div>
       </section>`).join("");
@@ -820,21 +832,36 @@
     const abiertas = seccionesAbiertas();
     const sabida = estaSabida(e.id);
 
-    const stats = [
-      alt && `<li><b>${esc(alt)}<sup>m</sup></b><span>Altura</span></li>`,
-      frio && `<li><b>${esc(frio)}<sup>°C</sup></b><span>Resistencia al frío</span></li>`,
-      e.tipoHoja && `<li><b>${esc(mayus(e.tipoHoja))}</b><span>Hoja${e.follaje ? " " + esc(e.follaje === "caduco" ? "caduca" : "perenne") : ""}</span></li>`,
+    const ic = {
+      altura: `<svg viewBox="0 0 24 24"><path d="M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4"/></svg>`,
+      frio: `<svg viewBox="0 0 24 24"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5 12 7l2.5-2.5M9.5 19.5 12 17l2.5 2.5"/></svg>`,
+      hoja: `<svg viewBox="0 0 24 24"><path d="M5 20c0-9 5-14 14-15-1 9-6 14-14 15zM5 20l7-7"/></svg>`,
+      origen: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"/></svg>`,
+    };
+    const origenCorto = (e.origen || "").split(/[(,]/)[0].replace(/^(Endémica de(l)?|Norte de|Sur de|Este de|Oeste de|Noroeste de|Suroeste de)\s+/i, "").trim();
+    const casillas = [
+      alt && `<div class="casilla"><i>${ic.altura}</i><span>Altura</span><b>${esc(alt)}<small> m</small></b></div>`,
+      frio && `<div class="casilla"><i>${ic.frio}</i><span>Frío</span><b>${esc(frio)}<small> °C</small></b></div>`,
+      e.tipoHoja && `<div class="casilla"><i>${ic.hoja}</i><span>Hoja</span><b class="texto">${esc(mayus(e.tipoHoja))}</b></div>`,
+      origenCorto && `<div class="casilla"><i>${ic.origen}</i><span>Origen</span><b class="texto">${esc(origenCorto)}</b></div>`,
+    ].filter(Boolean).join("");
+    const etiquetas = [
+      sabida && `<span class="etiqueta-estado si">Te la sabes</span>`,
+      e.autoctona && `<span class="etiqueta-estado">Autóctona</span>`,
+      e.follaje && `<span class="etiqueta-estado neutra">Hoja ${e.follaje === "caduco" ? "caduca" : "perenne"}</span>`,
+      e.grupo && `<span class="etiqueta-estado neutra">${esc(e.grupo)}</span>`,
     ].filter(Boolean).join("");
 
     dlgFicha.innerHTML = `
+      <div class="fondo-difuso" style="background-image:url('${esc(e.fotos?.planta || "")}')"></div>
       <div class="ficha-cab">
-        <button class="volver" data-cerrar>${ICONO.volver} Volver</button>
+        <button class="icono cristal" data-cerrar aria-label="Volver">${ICONO.volver}</button>
         <span class="botones-cab">
-          <button class="pastilla" data-pdf>${ICONO.pdf} PDF</button>
-          <button class="pastilla" data-editar>Editar</button>
+          <button class="icono cristal" data-pdf aria-label="Guardar en PDF" title="PDF">${ICONO.pdf}</button>
+          <button class="icono cristal" data-editar aria-label="Editar" title="Editar"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/></svg></button>
         </span>
       </div>
-      <section class="hero">
+      <section class="hero hero-v2">
         <div class="hero-fotos">
           <div class="carrusel-fotos" data-zoom>
             ${TIPOS_FOTO.filter(([t]) => e.fotos?.[t]).map(([t, n]) => `
@@ -846,14 +873,17 @@
           <div class="puntos">${TIPOS_FOTO.filter(([t]) => e.fotos?.[t]).map(([t], i) => `<button data-punto="${i}" class="${i ? "" : "activo"}" aria-label="Foto ${i + 1}"></button>`).join("")}</div>
           <div class="credito-actual">${htmlCredito(e, "planta")}</div>
         </div>
-        <div>
-          ${sabida ? `<span class="sello si mini">${ICONO.check} Te la sabes</span>` : ""}
+        <div class="hero-texto">
           <h2>${esc(e.nombres.ca)} ${botonVoz(e.nombres.ca, "ca", "el nombre en catalán")}</h2>
           <p class="sub">${esc(e.nombres.es)} ${botonVoz(e.nombres.es, "es", "el nombre en castellano")}</p>
-          <p class="sub"><i>${esc(e.nombres.lat)}</i> ${botonVoz(e.nombres.lat, "lat", "el nombre científico")}</p>
-          <p class="grupo">${esc([e.grupo, e.familia].filter(Boolean).join(" · "))}</p>
-          <ul class="stats">${stats}</ul>
+          <p class="sub lat"><i>${esc(e.nombres.lat)}</i> ${botonVoz(e.nombres.lat, "lat", "el nombre científico")}</p>
+          <p class="grupo">${esc(e.familia || "")}</p>
+          <div class="etiquetas-estado">${etiquetas}</div>
         </div>
+      </section>
+      <section class="resumen">
+        <h3>Resumen</h3>
+        <div class="casillas">${casillas}</div>
       </section>
       <section class="panel">
         <div class="panel-top">
@@ -1113,7 +1143,10 @@
     const recMemory = ls.get("recordMemory", null);
     const recQuiz = ls.get("recordQuiz", null);
     juego.innerHTML = `
-      <header class="titulo"><h1>Jugar</h1></header>
+      <header class="titulo saludo-cab juegos-cab">
+        <h1><span class="fino">Aprende</span><br>jugando</h1>
+        <p class="sub-saludo">Repasa las especies con juegos. Cuentan para tu progreso.</p>
+      </header>
       <div class="juegos">
         <button class="juego-tarjeta verde" data-juego="memory">
           <h2>Memory</h2>
@@ -1637,9 +1670,14 @@
     }
 
     idResultado.innerHTML = `
-      <div class="cargando">
-        <img class="foto-mini" src="${foto}" alt="">
-        <strong>Identificando…</strong><br><small>Comparando con miles de especies</small>
+      <div class="escaner">
+        <img src="${foto}" alt="Tu foto">
+        <span class="esquinas" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        <span class="linea-escaneo" aria-hidden="true"></span>
+        <div class="escaner-pie">
+          <span class="pulso"></span>
+          <div><strong>Identificando…</strong><small>Comparando con miles de especies</small></div>
+        </div>
       </div>`;
 
     try {
