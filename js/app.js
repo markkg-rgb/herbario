@@ -1172,10 +1172,31 @@
           <p class="record">${ls.get("recordOrdena", null) != null ? `Mejor puntuación: ${ls.get("recordOrdena")}/5` : "Aún sin puntuación"}</p>
           <span class="boton-giro"><span></span></span>
         </button>
+        <button class="juego-tarjeta verde" data-juego="conecta">
+          <span class="nuevo">Nuevo</span>
+          <h2>Conecta con hilos</h2>
+          <p>Une cada foto o nombre con su pareja trazando un hilo.</p>
+          <p class="record">${ls.get("recordConecta", null) != null ? `Mejor puntuación: ${ls.get("recordConecta")}/15` : "Aún sin puntuación"}</p>
+          <span class="boton-giro"><span></span></span>
+        </button>
+        <button class="juego-tarjeta" data-juego="misterio">
+          <span class="nuevo">Nuevo</span>
+          <h2>Foto misteriosa</h2>
+          <p>La foto se va aclarando. ¡Adivínala cuanto antes!</p>
+          <p class="record">${ls.get("recordMisterio", null) != null ? `Mejor puntuación: ${ls.get("recordMisterio")} puntos` : "Aún sin puntuación"}</p>
+          <span class="boton-giro"><span></span></span>
+        </button>
+        <button class="juego-tarjeta verde" data-juego="escribe">
+          <span class="nuevo">Nuevo</span>
+          <h2>Escribe el nombre</h2>
+          <p>Como en el examen: ves la foto y escribes el nombre.</p>
+          <p class="record">${ls.get("recordEscribe", null) != null ? `Mejor puntuación: ${ls.get("recordEscribe")}/8` : "Aún sin puntuación"}</p>
+          <span class="boton-giro"><span></span></span>
+        </button>
       </div>`;
     juego.onclick = (ev) => {
       const b = ev.target.closest("[data-juego]");
-      if (b) ({ memory: opcionesMemory, quiz: opcionesQuiz, vf: opcionesVF, ordena: opcionesOrdena })[b.dataset.juego]();
+      if (b) ({ memory: opcionesMemory, quiz: opcionesQuiz, vf: opcionesVF, ordena: opcionesOrdena, conecta: opcionesConecta, misterio: opcionesMisterio, escribe: opcionesEscribe })[b.dataset.juego]();
     };
   }
 
@@ -1583,6 +1604,342 @@
         n++;
         if (n < rondas.length) { pintar(); window.scrollTo(0, 0); }
         else pantallaResultado(puntos, rondas.length, "recordOrdena", empezarOrdena);
+      }
+    };
+    cabeceraJuego(true);
+    pintar();
+  }
+
+  /* ---------- CONECTA CON HILOS ---------- */
+  const MODOS_CONECTA = [
+    ["foto-lat", "Foto ↔ científico"],
+    ["ca-lat", "Catalán ↔ científico"],
+    ["rasgo", "Especie ↔ rasgo"],
+    ["hoja-ca", "Hoja ↔ catalán"],
+  ];
+  function opcionesConecta() {
+    const actual = MODOS_CONECTA.some(([m]) => m === opcionesGuardadas.modoConecta) ? opcionesGuardadas.modoConecta : "foto-lat";
+    opcionesGuardadas.modoConecta = actual;
+    pantallaOpciones("Conecta con hilos", `<div><span>Modo</span>${chipsOpcion("modoConecta", MODOS_CONECTA, actual)}</div>`, empezarConecta);
+  }
+
+  function empezarConecta() {
+    const modo = opcionesGuardadas.modoConecta || "foto-lat";
+    const tipoFoto = modo === "hoja-ca" ? "hoja" : "planta";
+    const pool = especiesDeGrupo(opcionesGuardadas.grupo).filter((e) =>
+      (modo === "foto-lat" || modo === "hoja-ca") ? e.fotos?.[tipoFoto] : modo === "rasgo" ? e.identificacion?.length : true);
+    if (pool.length < 3) { alert("No hay suficientes especies para este modo."); return; }
+    const porRonda = Math.min(5, pool.length);
+    const rondas = 3;
+    let ronda = 0, puntos = 0;
+
+    const izquierda = (e) => ({
+      "foto-lat": htmlFoto(e, "planta", ""), "hoja-ca": htmlFoto(e, "hoja", ""),
+      "ca-lat": `<span>${esc(e.nombres.ca)}</span>`, rasgo: `<span>${esc(e.nombres.ca)}</span>`,
+    })[modo];
+    const derecha = (e) => ({
+      "foto-lat": `<span><i>${esc(e.nombres.lat)}</i></span>`, "ca-lat": `<span><i>${esc(e.nombres.lat)}</i></span>`,
+      "hoja-ca": `<span>${esc(e.nombres.ca)}</span>`, rasgo: `<span class="rasgo">${esc(e.identificacion[0])}</span>`,
+    })[modo];
+
+    const pintarRonda = () => {
+      const especies = barajar(pool).slice(0, porRonda);
+      const der = barajar(especies);
+      let elegido = null;   // { lado, id, el }
+      let hechas = 0, fallosRonda = new Set();
+      juego.innerHTML = `
+        <div class="pregunta conecta-juego">
+          <div class="progreso"><div style="width:${(ronda / rondas) * 100}%"></div></div>
+          <div class="marcador" style="grid-template-columns:1fr 1fr">
+            <div><b>${ronda + 1}/${rondas}</b><span>Ronda</span></div>
+            <div><b id="c-puntos">${puntos}</b><span>Aciertos</span></div>
+          </div>
+          <p class="nota-dia" style="margin:0 0 12px">Toca un elemento de cada columna para unirlos con un hilo.</p>
+          <div class="conecta ${modo === "rasgo" ? "con-rasgos" : ""}">
+            <svg class="hilos" aria-hidden="true"></svg>
+            <div class="columna izq">${especies.map((e) => `<button class="nodo ${modo.startsWith("foto") || modo === "hoja-ca" ? "con-foto" : ""}" data-lado="izq" data-id="${esc(e.id)}">${izquierda(e)}<span class="punto-hilo"></span></button>`).join("")}</div>
+            <div class="columna der">${der.map((e) => `<button class="nodo" data-lado="der" data-id="${esc(e.id)}"><span class="punto-hilo"></span>${derecha(e)}</button>`).join("")}</div>
+          </div>
+          <div id="explicacion"></div>
+        </div>`;
+
+      const cont = $(".conecta", juego);
+      const svg = $(".hilos", cont);
+      const uniones = []; // { a, b, clase }
+
+      const punto = (el, lado) => {
+        const rc = cont.getBoundingClientRect(), r = el.getBoundingClientRect();
+        return { x: (lado === "izq" ? r.right : r.left) - rc.left, y: r.top + r.height / 2 - rc.top };
+      };
+      const trazado = (a, b) => {
+        const p = punto(a, "izq"), q = punto(b, "der");
+        const dx = (q.x - p.x) * 0.5;
+        return `M${p.x},${p.y} C${p.x + dx},${p.y} ${q.x - dx},${q.y} ${q.x},${q.y}`;
+      };
+      const redibujar = () => {
+        svg.setAttribute("viewBox", `0 0 ${cont.clientWidth} ${cont.clientHeight}`);
+        $$("path", svg).forEach((path, i) => { const u = uniones[i]; if (u) path.setAttribute("d", trazado(u.a, u.b)); });
+      };
+      const dibujarHilo = (a, b, clase) => {
+        svg.setAttribute("viewBox", `0 0 ${cont.clientWidth} ${cont.clientHeight}`);
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", trazado(a, b));
+        path.setAttribute("class", "hilo " + clase);
+        svg.appendChild(path);
+        const largo = path.getTotalLength();
+        path.style.strokeDasharray = largo;
+        path.style.strokeDashoffset = largo;
+        requestAnimationFrame(() => { path.style.strokeDashoffset = 0; });
+        const u = { a, b, clase };
+        uniones.push(u);
+        return { path, u };
+      };
+      window.addEventListener("resize", redibujar);
+
+      juego.onclick = (ev) => {
+        const n = ev.target.closest(".nodo");
+        if (n && !n.classList.contains("hecho")) {
+          if (!elegido || elegido.lado === n.dataset.lado) {
+            $$(".nodo.elegido", cont).forEach((x) => x.classList.remove("elegido"));
+            elegido = { lado: n.dataset.lado, id: n.dataset.id, el: n };
+            n.classList.add("elegido");
+            return;
+          }
+          const a = elegido.lado === "izq" ? elegido.el : n;
+          const b = elegido.lado === "izq" ? n : elegido.el;
+          elegido.el.classList.remove("elegido");
+          elegido = null;
+          const bien = a.dataset.id === b.dataset.id;
+          const { path, u } = dibujarHilo(a, b, bien ? "bien" : "mal");
+          if (bien) {
+            a.classList.add("hecho"); b.classList.add("hecho");
+            hechas++;
+            if (!fallosRonda.has(a.dataset.id)) { puntos++; registrarRespuesta(a.dataset.id, true); }
+            $("#c-puntos").textContent = puntos;
+            if (hechas === especies.length) {
+              marcarDiaEstudio();
+              window.removeEventListener("resize", redibujar);
+              $("#explicacion").innerHTML = `
+                <div class="explicacion"><strong>¡Ronda completada!</strong> ${fallosRonda.size ? `Has fallado ${fallosRonda.size} a la primera.` : "¡Sin ningún fallo!"}</div>
+                <div class="dorso-botones"><button class="btn principal" data-siguiente style="flex:1">${ronda + 1 < rondas ? "Siguiente ronda" : "Ver resultado"}</button></div>`;
+            }
+          } else {
+            [a, b].forEach((x) => { x.classList.add("error"); setTimeout(() => x.classList.remove("error"), 500); });
+            if (!fallosRonda.has(a.dataset.id)) { fallosRonda.add(a.dataset.id); registrarRespuesta(a.dataset.id, false); }
+            setTimeout(() => { path.classList.add("desvanece"); setTimeout(() => { path.remove(); uniones.splice(uniones.indexOf(u), 1); }, 350); }, 650);
+          }
+          return;
+        }
+        if (ev.target.closest("[data-siguiente]")) {
+          ronda++;
+          if (ronda < rondas) { pintarRonda(); window.scrollTo(0, 0); }
+          else pantallaResultado(puntos, rondas * porRonda, "recordConecta", empezarConecta);
+        }
+      };
+    };
+    cabeceraJuego(true);
+    pintarRonda();
+  }
+
+  /* ---------- FOTO MISTERIOSA ---------- */
+  function opcionesMisterio() { pantallaOpciones("Foto misteriosa", "", empezarMisterio); }
+
+  function empezarMisterio() {
+    const pool = especiesDeGrupo(opcionesGuardadas.grupo).filter((e) => e.fotos?.planta);
+    if (pool.length < 4) { alert("Se necesitan al menos 4 especies con foto."); return; }
+    let orden = [];
+    while (orden.length < 8) orden.push(...barajar(pool));
+    const preguntas = orden.slice(0, 8).map((e) => {
+      const tipos = TIPOS_FOTO.map(([t]) => t).filter((t) => e.fotos?.[t]);
+      return {
+        e, tipo: tipos[Math.floor(Math.random() * tipos.length)],
+        opciones: barajar([e, ...barajar(pool.filter((x) => x.id !== e.id)).slice(0, 3)]),
+        foco: `${20 + Math.random() * 60}% ${20 + Math.random() * 60}%`,
+      };
+    });
+    const PASOS = [
+      { blur: 22, zoom: 4 }, { blur: 14, zoom: 3 }, { blur: 8, zoom: 2.2 }, { blur: 3, zoom: 1.5 }, { blur: 0, zoom: 1 },
+    ];
+    let n = 0, puntos = 0, paso = 0, reloj = null;
+    const parar = () => { clearInterval(reloj); reloj = null; };
+
+    const aplicarPaso = () => {
+      const img = $(".misterio img", juego);
+      if (!img) return;
+      const p = PASOS[paso];
+      img.style.filter = `blur(${p.blur}px)`;
+      img.style.transform = `scale(${p.zoom})`;
+      $("#m-valor").textContent = `${PASOS.length - paso} pts`;
+      $$(".nivel i", juego).forEach((x, i) => x.classList.toggle("on", i < PASOS.length - paso));
+    };
+
+    const pintar = () => {
+      const p = preguntas[n];
+      paso = 0;
+      juego.innerHTML = `
+        <div class="pregunta">
+          <div class="progreso"><div style="width:${(n / preguntas.length) * 100}%"></div></div>
+          <div class="marcador">
+            <div><b>${n + 1}/${preguntas.length}</b><span>Foto</span></div>
+            <div><b>${puntos}</b><span>Puntos</span></div>
+            <div><b id="m-valor">${PASOS.length} pts</b><span>Vale ahora</span></div>
+          </div>
+          <div class="misterio">
+            <img src="${esc(p.e.fotos[p.tipo])}" alt="Foto misteriosa" style="transform-origin:${p.foco}">
+            <div class="nivel">${PASOS.map(() => "<i class='on'></i>").join("")}</div>
+          </div>
+          <h2>¿Qué especie es?</h2>
+          <div class="respuestas">
+            ${p.opciones.map((o) => `<button data-id="${esc(o.id)}">${esc(o.nombres.ca)}<small>${esc(o.nombres.lat)}</small></button>`).join("")}
+          </div>
+          <button class="enlace pista" data-pista>Aclarar ya (vale menos)</button>
+          <div id="explicacion"></div>
+        </div>`;
+      aplicarPaso();
+      parar();
+      reloj = setInterval(() => {
+        if (paso < PASOS.length - 1) { paso++; aplicarPaso(); } else parar();
+      }, 3000);
+    };
+
+    const revelar = () => { paso = PASOS.length - 1; aplicarPaso(); parar(); };
+
+    juego.onclick = (ev) => {
+      if (ev.target.closest("[data-pista]")) {
+        if (paso < PASOS.length - 1) { paso++; aplicarPaso(); }
+        return;
+      }
+      const b = ev.target.closest(".respuestas button");
+      if (b && !b.disabled) {
+        const p = preguntas[n];
+        const bien = b.dataset.id === p.e.id;
+        const valor = PASOS.length - paso;
+        if (bien) puntos += valor;
+        registrarRespuesta(p.e.id, bien);
+        revelar();
+        $$(".respuestas button", juego).forEach((x) => {
+          x.disabled = true;
+          if (x.dataset.id === p.e.id) x.classList.add("bien");
+          else if (x === b) x.classList.add("mal");
+        });
+        $("[data-pista]", juego).hidden = true;
+        $("#explicacion").innerHTML = `
+          <div class="explicacion"><strong>${bien ? `¡Correcto! +${valor} puntos` : "¡Casi!"}</strong> Es <b>${esc(p.e.nombres.ca)}</b> (<i>${esc(p.e.nombres.lat)}</i>) — ${esc(TIPOS_FOTO.find(([t]) => t === p.tipo)[1].toLowerCase())}.</div>
+          <div class="dorso-botones"><button class="btn principal" data-siguiente style="flex:1">${n + 1 < preguntas.length ? "Siguiente" : "Ver resultado"}</button></div>`;
+        return;
+      }
+      if (ev.target.closest("[data-siguiente]")) {
+        n++;
+        if (n < preguntas.length) { pintar(); window.scrollTo(0, 0); }
+        else { parar(); pantallaResultado(puntos, preguntas.length * PASOS.length, "recordMisterio", empezarMisterio); }
+      }
+    };
+    cabeceraJuego(true);
+    pintar();
+    // Si se sale del juego, parar el reloj
+    btnSalir.addEventListener("click", parar, { once: true });
+  }
+
+  /* ---------- ESCRIBE EL NOMBRE ---------- */
+  const MODOS_ESCRIBE = [["lat", "Científico"], ["ca", "Catalán"], ["es", "Castellano"], ["todos", "Los tres"]];
+  function opcionesEscribe() {
+    const actual = MODOS_ESCRIBE.some(([m]) => m === opcionesGuardadas.modoEscribe) ? opcionesGuardadas.modoEscribe : "lat";
+    opcionesGuardadas.modoEscribe = actual;
+    pantallaOpciones("Escribe el nombre", `<div><span>¿Qué nombre?</span>${chipsOpcion("modoEscribe", MODOS_ESCRIBE, actual)}</div>`, empezarEscribe);
+  }
+
+  // Distancia de edición (para perdonar pequeñas faltas)
+  function distancia(a, b) {
+    const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+    for (let j = 1; j <= b.length; j++) d[0][j] = j;
+    for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    return d[a.length][b.length];
+  }
+  const limpio = (s) => norm(s).replace(/[^a-z0-9·\s]/g, " ").replace(/·/g, "").replace(/\s+/g, " ").trim();
+  /** "bien" (exacto sin tildes), "casi" (1–2 letras de diferencia) o "mal" */
+  function corregir(escrito, correcto) {
+    const a = limpio(escrito), b = limpio(correcto);
+    if (!a) return "mal";
+    if (a === b) return "bien";
+    const tolerancia = b.length > 12 ? 2 : 1;
+    return distancia(a, b) <= tolerancia ? "casi" : "mal";
+  }
+
+  function empezarEscribe() {
+    const modo = opcionesGuardadas.modoEscribe || "lat";
+    const campos = modo === "todos" ? ["ca", "es", "lat"] : [modo];
+    const etiquetas = { ca: "Nombre en catalán", es: "Nombre en castellano", lat: "Nombre científico" };
+    const pool = especiesDeGrupo(opcionesGuardadas.grupo).filter((e) => e.fotos?.planta);
+    if (!pool.length) { alert("No hay especies con foto."); return; }
+    let orden = [];
+    while (orden.length < 8) orden.push(...barajar(pool));
+    const preguntas = orden.slice(0, 8).map((e) => {
+      const tipos = ["planta", "hoja"].filter((t) => e.fotos?.[t]);
+      return { e, tipo: tipos[Math.floor(Math.random() * tipos.length)] };
+    });
+    let n = 0, puntos = 0;
+
+    const pintar = () => {
+      const p = preguntas[n];
+      juego.innerHTML = `
+        <div class="pregunta">
+          <div class="progreso"><div style="width:${(n / preguntas.length) * 100}%"></div></div>
+          <div class="marcador" style="grid-template-columns:1fr 1fr">
+            <div><b>${n + 1}/${preguntas.length}</b><span>Foto</span></div>
+            <div><b>${puntos}</b><span>Aciertos</span></div>
+          </div>
+          <div data-zoom>${htmlFoto(p.e, p.tipo, "¿Qué especie es?")}</div>
+          <form class="escribe" autocomplete="off">
+            ${campos.map((c, i) => `
+              <label>${etiquetas[c]}
+                <input name="${c}" ${i === 0 ? "autofocus" : ""} autocapitalize="${c === "lat" ? "words" : "sentences"}" spellcheck="false" placeholder="${c === "lat" ? "Género especie" : "Escribe…"}">
+                <span class="correccion" data-campo="${c}"></span>
+              </label>`).join("")}
+            <div class="vf-botones">
+              <button type="button" class="btn" data-nolase>No lo sé</button>
+              <button type="submit" class="btn principal">Comprobar</button>
+            </div>
+          </form>
+          <div id="explicacion"></div>
+        </div>`;
+      setTimeout(() => $(".escribe input", juego)?.focus(), 300);
+    };
+
+    const comprobar = (rendirse) => {
+      const p = preguntas[n];
+      const form = $(".escribe", juego);
+      if (form.dataset.hecho) return;
+      form.dataset.hecho = "1";
+      let todoBien = true;
+      for (const c of campos) {
+        const input = form.elements[c];
+        const r = rendirse ? "mal" : corregir(input.value, p.e.nombres[c]);
+        if (r === "mal") todoBien = false;
+        input.disabled = true;
+        input.classList.add(r);
+        $(`[data-campo="${c}"]`, form).innerHTML =
+          r === "bien" ? "✓ Correcto"
+          : r === "casi" ? `✓ Casi: se escribe <b>${esc(p.e.nombres[c])}</b>`
+          : `✗ Era <b>${esc(p.e.nombres[c])}</b>`;
+      }
+      if (todoBien) puntos++;
+      registrarRespuesta(p.e.id, todoBien);
+      $$(".vf-botones", form).forEach((x) => x.remove());
+      $("#explicacion").innerHTML = `
+        <div class="explicacion"><strong>${todoBien ? "¡Correcto!" : "¡A repasar!"}</strong> ${esc(p.e.nombres.ca)} · ${esc(p.e.nombres.es)} · <i>${esc(p.e.nombres.lat)}</i></div>
+        <div class="dorso-botones"><button class="btn principal" data-siguiente style="flex:1">${n + 1 < preguntas.length ? "Siguiente" : "Ver resultado"}</button></div>`;
+      setTimeout(() => $("[data-siguiente]", juego)?.focus(), 100);
+    };
+
+    juego.onsubmit = (ev) => { ev.preventDefault(); comprobar(false); };
+    juego.onclick = (ev) => {
+      if (ev.target.closest("[data-zoom] img")) { verFoto(ev.target.closest("img").src); return; }
+      if (ev.target.closest("[data-nolase]")) { comprobar(true); return; }
+      if (ev.target.closest("[data-siguiente]")) {
+        n++;
+        if (n < preguntas.length) { pintar(); window.scrollTo(0, 0); }
+        else { juego.onsubmit = null; pantallaResultado(puntos, preguntas.length, "recordEscribe", empezarEscribe); }
       }
     };
     cabeceraJuego(true);

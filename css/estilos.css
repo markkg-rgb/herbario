@@ -1010,6 +1010,78 @@ body::after {
 .campana .punto { border-color: #e6eee2; }
 .toast { background: rgba(28,42,31,.88); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 
+/* ---- Juegos nuevos ---- */
+.juego-tarjeta .nuevo {
+  position: absolute; top: 14px; right: 16px; font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+  padding: 3px 9px; border-radius: 99px; background: #e6c56a; color: #3a2c05;
+}
+.juego-tarjeta.verde .nuevo { background: #e6c56a; }
+.juego-tarjeta h2 { padding-right: 60px; }
+
+/* Conecta con hilos */
+.conecta { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 0 56px; }
+.conecta.con-rasgos { grid-template-columns: .8fr 1.2fr; gap: 0 44px; }
+.hilos { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 2; }
+.hilo { fill: none; stroke-width: 3.5; stroke-linecap: round; transition: stroke-dashoffset .55s cubic-bezier(.3,.7,.3,1), opacity .35s; filter: drop-shadow(0 2px 3px rgba(0,0,0,.15)); }
+.hilo.bien { stroke: #56865c; }
+.hilo.mal { stroke: #c9573f; stroke-dasharray: none; }
+.hilo.desvanece { opacity: 0; }
+.columna { display: flex; flex-direction: column; gap: 10px; }
+.nodo {
+  position: relative; min-height: 64px; border-radius: 18px; padding: 8px 12px; display: flex; align-items: center; gap: 8px;
+  text-align: left; font-size: .82rem; font-weight: 600; line-height: 1.25; color: var(--texto);
+  background: var(--cristal); border: 2px solid var(--cristal-borde); -webkit-backdrop-filter: var(--desenfoque); backdrop-filter: var(--desenfoque);
+  box-shadow: var(--sombra); transition: transform .18s, border-color .2s, background-color .2s, opacity .3s;
+}
+.nodo i { font-weight: 500; }
+.nodo .rasgo { font-weight: 500; font-size: .74rem; }
+.nodo.con-foto { padding: 5px; min-height: 0; }
+.nodo.con-foto .foto { width: 100%; aspect-ratio: 4 / 3; border-radius: 13px; }
+.nodo.elegido { border-color: var(--verde); background: rgba(211,230,207,.85); transform: scale(1.03); box-shadow: 0 0 0 4px rgba(94,143,100,.2), var(--sombra); }
+.nodo.hecho { border-color: #8fc295; background: rgba(211,230,207,.6); opacity: .8; cursor: default; }
+.nodo.error { animation: temblor .45s ease; border-color: #c9573f; }
+.punto-hilo {
+  position: absolute; top: 50%; width: 12px; height: 12px; margin-top: -6px; border-radius: 50%;
+  background: #fff; border: 3px solid var(--verde); box-shadow: 0 1px 4px rgba(0,0,0,.2); z-index: 3;
+}
+.columna.izq .punto-hilo { right: -8px; }
+.columna.der .punto-hilo { left: -8px; }
+.nodo.elegido .punto-hilo { background: var(--verde); animation: latidoBoton 1.4s infinite; }
+.nodo.hecho .punto-hilo { background: #56865c; }
+
+/* Foto misteriosa */
+.misterio { position: relative; aspect-ratio: 4 / 3; border-radius: 26px; overflow: hidden; background: #213316; box-shadow: var(--sombra); }
+.misterio img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 1; transition: filter 1s ease, transform 1s cubic-bezier(.3,.7,.3,1); }
+.nivel { position: absolute; left: 14px; bottom: 14px; display: flex; gap: 5px; padding: 6px 8px; border-radius: 99px; background: rgba(0,0,0,.35); backdrop-filter: blur(8px); }
+.nivel i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,.3); transition: background .3s; }
+.nivel i.on { background: #e6c56a; }
+.pista { display: block; margin: 12px auto 0; }
+
+/* Escribe el nombre */
+.escribe { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+.escribe label { display: flex; flex-direction: column; gap: 6px; font-size: .8rem; font-weight: 600; color: var(--suave); }
+.escribe input {
+  font: inherit; font-size: 1.05rem; padding: 14px 16px; border-radius: 16px; color: var(--texto); outline: 0;
+  background: var(--cristal-fuerte); border: 2px solid var(--cristal-borde); -webkit-backdrop-filter: var(--desenfoque); backdrop-filter: var(--desenfoque);
+  transition: border-color .2s, box-shadow .2s;
+}
+.escribe input[name="lat"] { font-style: italic; }
+.escribe input:focus { border-color: var(--verde); box-shadow: 0 0 0 4px rgba(94,143,100,.18); }
+.escribe input.bien { border-color: #6fae76; background: rgba(111,174,118,.18); }
+.escribe input.casi { border-color: #d9b04f; background: rgba(230,197,106,.2); }
+.escribe input.mal { border-color: #c9573f; background: rgba(214,120,100,.15); animation: temblor .45s ease; }
+.correccion { font-size: .8rem; font-weight: 500; color: var(--texto); min-height: 0; }
+.correccion:empty { display: none; }
+.escribe .vf-botones { margin-top: 4px; }
+.pregunta [data-zoom] .foto { aspect-ratio: 4 / 3; border-radius: 26px; }
+
+.conecta:has(.nodo.con-foto) { grid-template-columns: .85fr 1fr; }
+@media (max-width: 720px) {
+  .conecta { gap: 0 64px; }
+  .conecta.con-rasgos { gap: 0 44px; }
+  .nodo { font-size: .76rem; padding: 8px 10px; }
+}
+
 @media (max-width: 720px) {
   .hero-v2 { grid-template-columns: 1fr; gap: 14px; padding: 8px 16px 4px; }
   .hero-v2 .hero-texto { order: 0; }
