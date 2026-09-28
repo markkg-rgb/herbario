@@ -1,0 +1,6 @@
+.claude/
+*.tmp
+Thumbs.db
+desktop.ini
+# Imagen de referencia de diseño (no forma parte de la app)
+614b464781d00040b3e4492db39809c3.jpg

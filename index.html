@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Herbario · Base de datos botánica</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/estilos.css">
+  <!-- App instalable -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#2f9a5b">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Herbario">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+</head>
+<body>
+  <div class="app">
+
+    <!-- ===================== INICIO ===================== -->
+    <section class="vista" id="vista-inicio">
+      <nav class="barra">
+        <span class="fecha" id="hoy"></span>
+        <svg class="logo" viewBox="0 0 48 32" aria-hidden="true"><use href="#i-logo"/></svg>
+        <span class="barra-hueco"></span>
+      </nav>
+
+      <header class="titulo">
+        <p class="antetitulo">Especie del día</p>
+        <h1>¿Te la sabes?</h1>
+      </header>
+
+      <div class="giro" id="giro">
+        <div class="giro-interior">
+          <!-- Cara: pregunta -->
+          <article class="cara cara-frente" aria-label="Pregunta">
+            <figure class="foto"><img alt="Especie misteriosa"></figure>
+            <div class="cara-pie">
+              <div>
+                <strong>¿Qué especie es?</strong>
+                <span id="pista"></span>
+              </div>
+              <button class="boton-giro" id="btn-girar" aria-label="Ver la respuesta">
+                <span></span>
+              </button>
+            </div>
+          </article>
+          <!-- Cara: respuesta -->
+          <article class="cara cara-dorso" aria-label="Respuesta" id="respuesta"></article>
+        </div>
+      </div>
+      <p class="nota-dia" id="nota-dia"></p>
+    </section>
+
+    <!-- ===================== HERBARIO ===================== -->
+    <section class="vista" id="vista-herbario" hidden>
+      <nav class="barra">
+        <span class="barra-hueco"></span>
+        <svg class="logo" viewBox="0 0 48 32" aria-hidden="true"><use href="#i-logo"/></svg>
+        <div class="menu-envoltorio">
+          <button class="icono" id="btn-menu" aria-label="Más opciones">
+            <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>
+          </button>
+          <div class="menu" id="menu" hidden>
+            <button id="btn-nueva">Nueva especie</button>
+            <button id="btn-sync">Actualizar ahora</button>
+            <button id="btn-clave">Clave de edición</button>
+            <button id="btn-exportar">Exportar datos (JSON)</button>
+            <label class="boton">Importar datos<input type="file" id="inp-importar" accept=".json" hidden></label>
+            <p class="estado-sync" id="estado-sync"></p>
+          </div>
+        </div>
+      </nav>
+
+      <header class="titulo izq">
+        <h1>Herbario</h1>
+      </header>
+
+      <div class="buscador">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input type="search" id="buscar" placeholder="Busca por nombre o característica…">
+      </div>
+
+      <div class="fila-filtros">
+        <div class="chips" id="f-grupo"></div>
+        <div class="filtros-envoltorio">
+          <button class="chip-filtros" id="btn-filtros">
+            <svg viewBox="0 0 24 24"><path d="M7 3v6M7 13v8M17 3v10M17 17v4M4 11h6M14 15h6"/></svg>
+            Filtros <b id="n-filtros" hidden></b>
+          </button>
+          <div class="pop-filtros" id="pop-filtros" hidden>
+            <label>Tipo de hoja
+              <select id="f-hoja">
+                <option value="">Cualquiera</option>
+                <option value="pinnada">Pinnada</option>
+                <option value="palmeada">Palmeada</option>
+                <option value="costapalmeada">Costapalmeada</option>
+                <option value="simple">Simple</option>
+                <option value="compuesta">Compuesta</option>
+              </select>
+            </label>
+            <label>Follaje
+              <select id="f-follaje">
+                <option value="">Cualquiera</option>
+                <option value="perenne">Perenne</option>
+                <option value="caduco">Caduco</option>
+              </select>
+            </label>
+            <label class="check"><input type="checkbox" id="f-autoctona"> Solo autóctonas</label>
+            <button class="enlace" id="btn-limpiar">Quitar filtros</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="lista"></div>
+    </section>
+
+    <!-- ===================== JUGAR ===================== -->
+    <section class="vista" id="vista-jugar" hidden>
+      <nav class="barra">
+        <button class="icono" id="btn-salir-juego" aria-label="Volver" hidden>
+          <svg viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg>
+        </button>
+        <span class="barra-hueco" id="hueco-juego"></span>
+        <svg class="logo" viewBox="0 0 48 32" aria-hidden="true"><use href="#i-logo"/></svg>
+        <span class="barra-hueco"></span>
+      </nav>
+      <div id="juego"></div>
+    </section>
+
+  </div>
+
+  <!-- Navegación inferior -->
+  <nav class="navegacion" id="navegacion">
+    <button data-vista="inicio" class="activo">
+      <svg viewBox="0 0 24 24"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></svg>
+      <span>Inicio</span>
+    </button>
+    <button data-vista="herbario">
+      <svg viewBox="0 0 24 24"><path d="M5 20c0-9 5-14 14-15-1 9-6 14-14 15zM5 20l7-7"/></svg>
+      <span>Herbario</span>
+    </button>
+    <button data-vista="jugar">
+      <svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>
+      <span>Jugar</span>
+    </button>
+  </nav>
+
+  <!-- Ficha de detalle -->
+  <dialog id="dlg-ficha" class="pantalla"></dialog>
+
+  <!-- Formulario -->
+  <dialog id="dlg-form" class="pantalla claro">
+    <form id="form-especie" method="dialog"></form>
+  </dialog>
+
+  <!-- Visor de foto -->
+  <dialog id="dlg-foto" class="visor"><img alt=""></dialog>
+
+  <!-- Iconos -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-logo" viewBox="0 0 48 32">
+      <path d="M24 2c5 5 6 13 0 22C18 15 19 7 24 2z"/>
+      <path d="M4 12c9-1 16 4 20 12C14 26 7 21 4 12z"/>
+      <path d="M44 12c-9-1-16 4-20 12 10 2 17-3 20-12z"/>
+      <path d="M6 26h36c-3 4-8 5-18 5S9 30 6 26z"/>
+    </symbol>
+  </svg>
+
+  <script src="js/config.js"></script>
+  <script src="js/datos.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
