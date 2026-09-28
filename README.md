@@ -1,6 +1,11 @@
 # Herbario · Base de datos botánica
 
-App para estudiar especies botánicas (Espais exteriors i jardineria): especie del día, herbario con fichas completas y juegos (Memory y Quiz). Se instala en el móvil como app y funciona sin conexión.
+App para estudiar especies botánicas (Espais exteriors i jardineria). Se instala en el móvil como app y funciona sin conexión.
+
+- **Inicio**: especie del día (tarjeta que se gira), progreso (especies que te sabes) y racha de días.
+- **Herbario**: fichas con apartados desplegables (descripción, identificación, más fotos, no confundir con + comparador, calendario, jardinería, ficha técnica, curiosidades), pronunciación de los nombres y exportación a PDF.
+- **Identifica**: reconoce plantas con la cámara (Pl@ntNet), indica si están en el herbario y guarda tus hallazgos con foto, fecha y lugar en un mapa.
+- **Jugar**: Memory, Quiz, ¿Verdadero o falso? y Ordena.
 
 ## Estructura
 

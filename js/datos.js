@@ -536,6 +536,148 @@ window.ESPECIES_BASE = [
   },
 ];
 
+/*
+ * CALENDARIO Y JARDINERÍA
+ * calendario: meses (1 = enero … 12 = diciembre) de floración, fruto y poda.
+ * Valores orientativos para clima mediterráneo litoral (Cataluña).
+ */
+(() => {
+  const PALMERA_PODA = "Solo retirar hojas secas e inflorescencias. Mejor en invierno, cuando el picudo rojo está menos activo; sellar los cortes.";
+  const datos = {
+    "phoenix-canariensis": {
+      calendario: { flor: [4, 5, 6], fruto: [9, 10, 11, 12], poda: [12, 1, 2] },
+      jardineria: {
+        exposicion: "Pleno sol.",
+        riego: "Bajo-moderado. Resiste la sequía una vez establecida.",
+        suelo: "Cualquiera bien drenado; tolera la caliza y algo de salinidad.",
+        poda: PALMERA_PODA + " No cortar hojas verdes (\"pelar\" la palmera la debilita).",
+        plagas: "Picudo rojo (Rhynchophorus ferrugineus), mariposa perforadora (Paysandisia archon) y fusariosis (Fusarium oxysporum f. sp. canariensis).",
+      },
+    },
+    "phoenix-dactylifera": {
+      calendario: { flor: [3, 4, 5], fruto: [9, 10, 11, 12], poda: [12, 1, 2] },
+      jardineria: {
+        exposicion: "Pleno sol; necesita mucho calor para madurar los dátiles.",
+        riego: "Bajo. Muy resistente a la sequía.",
+        suelo: "Arenoso y bien drenado; tolera la salinidad.",
+        poda: PALMERA_PODA + " Retirar los hijuelos si se quiere un solo tronco.",
+        plagas: "Picudo rojo, Paysandisia archon y cochinillas.",
+      },
+    },
+    "washingtonia-robusta": {
+      calendario: { flor: [5, 6, 7], fruto: [10, 11, 12], poda: [12, 1, 2, 3] },
+      jardineria: {
+        exposicion: "Pleno sol.",
+        riego: "Moderado; tolera la sequía.",
+        suelo: "Cualquiera bien drenado.",
+        poda: "Retirar la \"falda\" de hojas secas (riesgo de incendio y refugio de plagas) e inflorescencias.",
+        plagas: "Paysandisia archon, picudo rojo (menos frecuente) y Diocalandra.",
+      },
+    },
+    "washingtonia-filifera": {
+      calendario: { flor: [6, 7, 8], fruto: [10, 11, 12], poda: [12, 1, 2, 3] },
+      jardineria: {
+        exposicion: "Pleno sol.",
+        riego: "Bajo-moderado; muy resistente a la sequía.",
+        suelo: "Cualquiera bien drenado, incluso pobre.",
+        poda: "Retirar la \"falda\" de hojas secas e inflorescencias.",
+        plagas: "Paysandisia archon y, ocasionalmente, picudo rojo.",
+      },
+    },
+    "bismarckia-nobilis": {
+      calendario: { flor: [5, 6, 7, 8], fruto: [10, 11, 12], poda: [3, 4] },
+      jardineria: {
+        exposicion: "Pleno sol y lugar protegido del frío.",
+        riego: "Moderado; no tolera el encharcamiento.",
+        suelo: "Bien drenado, arenoso.",
+        poda: "Solo hojas completamente secas; no se recupera bien de podas fuertes.",
+        plagas: "Pocas: cochinillas y araña roja en ejemplares jóvenes. Sensible a heladas.",
+      },
+    },
+    "chamaerops-humilis": {
+      calendario: { flor: [3, 4, 5], fruto: [9, 10, 11], poda: [1, 2, 3] },
+      jardineria: {
+        exposicion: "Sol; tolera semisombra.",
+        riego: "Muy bajo. Ideal para xerojardinería.",
+        suelo: "Pobre, calizo y pedregoso; cualquiera bien drenado.",
+        poda: "Retirar hojas secas y, si se quiere, hijuelos para formar un tronco.",
+        plagas: "Muy atacada por Paysandisia archon; ocasionalmente picudo rojo.",
+      },
+    },
+    "hedera-helix": {
+      calendario: { flor: [9, 10, 11], fruto: [1, 2, 3, 4], poda: [3, 4, 7, 8] },
+      jardineria: {
+        exposicion: "Sombra o semisombra; tolera el sol.",
+        riego: "Moderado.",
+        suelo: "Cualquiera, mejor fresco.",
+        poda: "A inicios de primavera y recortes en verano para controlarla.",
+        plagas: "Cochinillas, pulgón y araña roja en ambientes secos; manchas en las hojas.",
+      },
+    },
+    "parthenocissus-tricuspidata": {
+      calendario: { flor: [6, 7], fruto: [9, 10], poda: [12, 1, 2, 7] },
+      jardineria: {
+        exposicion: "Sol o semisombra (más color en otoño con sol).",
+        riego: "Moderado.",
+        suelo: "Cualquiera.",
+        poda: "En invierno, sin hojas, y recortes en verano para apartarla de ventanas y tejados.",
+        plagas: "Pulgón, oídio y mildiu.",
+      },
+    },
+    "ficus-pumila": {
+      calendario: { flor: [5, 6, 7], fruto: [8, 9, 10], poda: [3, 4, 7] },
+      jardineria: {
+        exposicion: "Semisombra o sombra; tolera el sol si no le falta agua.",
+        riego: "Moderado y regular.",
+        suelo: "Fértil y bien drenado.",
+        poda: "En primavera y recortes en verano para mantener el tapiz plano.",
+        plagas: "Cochinillas, araña roja y mosca blanca.",
+      },
+    },
+    "bougainvillea-spectabilis": {
+      calendario: { flor: [4, 5, 6, 7, 8, 9, 10, 11], fruto: [], poda: [2, 3] },
+      jardineria: {
+        exposicion: "Pleno sol y calor.",
+        riego: "Bajo-moderado: con poco riego florece más.",
+        suelo: "Bien drenado.",
+        poda: "Fuerte a finales de invierno y ligera tras cada floración. Guiar y atar los tallos (cuidado con las espinas).",
+        plagas: "Pulgón, cochinilla algodonosa y mosca blanca.",
+      },
+    },
+    "wisteria-sinensis": {
+      calendario: { flor: [3, 4, 5], fruto: [7, 8, 9], poda: [1, 2, 7, 8] },
+      jardineria: {
+        exposicion: "Pleno sol (con sombra florece poco).",
+        riego: "Moderado.",
+        suelo: "Fértil, neutro o algo ácido (en suelos calizos sufre clorosis).",
+        poda: "Dos veces: en verano, acortar los brotes largos; en invierno, dejarlos a 2–3 yemas.",
+        plagas: "Pulgón, cochinillas y clorosis férrica.",
+      },
+    },
+    "jasminum-officinale": {
+      calendario: { flor: [6, 7, 8, 9], fruto: [], poda: [2, 3, 10] },
+      jardineria: {
+        exposicion: "Sol o semisombra.",
+        riego: "Moderado.",
+        suelo: "Fértil y bien drenado.",
+        poda: "Tras la floración, aclarando tallos viejos; o a finales de invierno.",
+        plagas: "Pulgón, cochinillas y mosca blanca.",
+      },
+    },
+    "plumbago-auriculata": {
+      calendario: { flor: [4, 5, 6, 7, 8, 9, 10, 11], fruto: [], poda: [2, 3] },
+      jardineria: {
+        exposicion: "Pleno sol.",
+        riego: "Bajo-moderado; resiste la sequía.",
+        suelo: "Cualquiera bien drenado.",
+        poda: "Fuerte a finales de invierno: florece en los brotes nuevos.",
+        plagas: "Pocas: cochinillas, mosca blanca y orugas de la mariposa Leptotes pirithous, que se comen las flores.",
+      },
+    },
+  };
+  for (const e of window.ESPECIES_BASE) Object.assign(e, datos[e.id] || {});
+})();
+
 /* Autoría de las fotos que no son del recull (Wikimedia Commons) */
 (() => {
   const s = "Forest and Kim Starr", by3 = "CC BY 3.0 US", bysa3 = "CC BY-SA 3.0", bysa4 = "CC BY-SA 4.0";
@@ -575,7 +717,47 @@ window.ESPECIES_BASE = [
       hoja: [s, by3, "Starr-110215-1097-Plumbago_auriculata-leaves-KiHana_Nursery_Kihei-Maui_(24957463532).jpg"],
     },
   };
+  // Fotos extra de flor, fruto y tronco (img/<id>-<tipo>.jpg)
+  const extra = {
+    "phoenix-canariensis": {
+      fruto: ["Flocci Nivis", "CC BY 4.0", "20250706_Phoenix_canariensis.jpg"],
+      tronco: [s, "CC BY 3.0", "Starr_060905-8747_Phoenix_canariensis.jpg"],
+    },
+    "phoenix-dactylifera": {
+      flor: ["Md. Anisur Rahman", bysa3, "Date_Flowers.JPG"],
+      tronco: ["Ahmed1251985", bysa4, "Date_palm_bark.jpg"],
+    },
+    "washingtonia-robusta": {
+      flor: ["John Tann", "CC BY 2.0", "Mexican_fan_palm_flower_(3139171175).jpg"],
+      fruto: ["John Tann", "CC BY 2.0", "Mexican_fan_palm_fruit_(3374596037).jpg"],
+      tronco: [s, "CC BY 3.0", "Starr_010914-0078_Washingtonia_robusta.jpg"],
+    },
+    "chamaerops-humilis": {
+      flor: ["Autor desconocido", "CC BY-SA 2.5", "Chamaerops_humilis_flowers.jpg"],
+      fruto: ["tato grasso", "CC BY-SA 2.5", "Chamaerops_humilis_(Zingaro)020.jpg"],
+    },
+    "hedera-helix": {
+      flor: ["AnRo0002", "CC0", "20121015Hedera_helix3.jpg"],
+      fruto: ["Hladac", bysa4, "(ms)_Hedera_helix_3.jpg"],
+      tronco: ["AnRo0002", "CC0", "20140227Hedera_helix01.jpg"],
+    },
+    "parthenocissus-tricuspidata": { fruto: ["Marco Wentzel", "CC BY 4.0", "Parthenocissus_tricuspidata_Fr%C3%BCchte.JPG"] },
+    "ficus-pumila": { fruto: ["Yercaud-elango", bysa4, "Ficus_pumila-1-yercaud-salem-India.JPG"] },
+    "bougainvillea-spectabilis": { flor: ["Gmihail", "CC BY-SA 3.0 RS", "Bougainvilea_bracts.jpg"] },
+    "wisteria-sinensis": {
+      flor: ["Philmarin", bysa4, "(MAD_)_W._sinensis-1.jpg"],
+      fruto: ["Jules Verne Times Two", bysa4, "Seed_pod_of_Chinese_wisteria_(Wisteria_sinensis),_Ponte_de_Sor,_Portugal_(approx._GPS_location)_julesvernex2-2.jpg"],
+    },
+    "plumbago-auriculata": {
+      flor: ["Didier Descouens", bysa4, "(MHNT)_Plumbago_auriculata_-_Les_Martels,_Giroussens.jpg"],
+      fruto: ["Dominicus Johannes Bergsma", bysa4, "Zaaddozen_van_Plumbago_auriculata_Locatie._Tuinreservaat_Jonker_vallei_01.jpg"],
+    },
+  };
   for (const e of window.ESPECIES_BASE) {
+    for (const [tipo, datos] of Object.entries(extra[e.id] || {})) {
+      e.fotos[tipo] = `img/${e.id}-${tipo}.jpg`;
+      (creditos[e.id] ||= {})[tipo] = datos;
+    }
     const cr = creditos[e.id];
     if (!cr) continue;
     e.creditos = {};

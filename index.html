@@ -54,6 +54,7 @@
         </div>
       </div>
       <p class="nota-dia" id="nota-dia"></p>
+      <div id="progreso"></div>
     </section>
 
     <!-- ===================== HERBARIO ===================== -->
@@ -181,6 +182,9 @@
 
         <!-- Paso 2: resultado -->
         <div id="id-resultado" hidden></div>
+
+        <!-- Mis hallazgos (lista y mapa) -->
+        <section class="hallazgos" id="hallazgos"></section>
       </div>
     </section>
 
@@ -213,6 +217,15 @@
   <dialog id="dlg-form" class="pantalla claro">
     <form id="form-especie" method="dialog"></form>
   </dialog>
+
+  <!-- Comparador de especies -->
+  <dialog id="dlg-comparar" class="pantalla claro"></dialog>
+
+  <!-- Detalle de un hallazgo -->
+  <dialog id="dlg-hallazgo" class="pantalla claro"></dialog>
+
+  <!-- Zona que solo se ve al imprimir / guardar en PDF -->
+  <div id="impresion"></div>
 
   <!-- Visor de foto -->
   <dialog id="dlg-foto" class="visor"><img alt=""></dialog>

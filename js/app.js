@@ -23,6 +23,11 @@
     lupa: `<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>`,
     info: `<svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>`,
     logo: `<svg viewBox="0 0 48 32"><use href="#i-logo"/></svg>`,
+    altavoz: `<svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>`,
+    flecha: `<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>`,
+    pdf: `<svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></svg>`,
+    comparar: `<svg viewBox="0 0 24 24"><path d="M8 4v16M16 4v16M3 8h5M16 16h5"/></svg>`,
+    check: `<svg viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg>`,
   };
 
   /* ---------------- Almacenamiento (IndexedDB) ----------------
@@ -33,8 +38,12 @@
 
   function abrirDB() {
     return new Promise((ok, ko) => {
-      const req = indexedDB.open(DB_NOMBRE, 1);
-      req.onupgradeneeded = () => req.result.createObjectStore("kv");
+      const req = indexedDB.open(DB_NOMBRE, 2);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains("kv")) db.createObjectStore("kv");
+        if (!db.objectStoreNames.contains("hallazgos")) db.createObjectStore("hallazgos", { keyPath: "id" });
+      };
       req.onsuccess = () => ok(req.result);
       req.onerror = () => ko(req.error);
     });
@@ -64,6 +73,28 @@
     } catch (e) {
       alert("No se han podido guardar los cambios: " + e.message);
     }
+  }
+
+  /* Hallazgos: plantas identificadas y guardadas con foto, fecha y lugar */
+  async function hallazgosTodos() {
+    try {
+      const db = await abrirDB();
+      const lista = await new Promise((ok, ko) => {
+        const r = db.transaction("hallazgos").objectStore("hallazgos").getAll();
+        r.onsuccess = () => ok(r.result || []);
+        r.onerror = () => ko(r.error);
+      });
+      return lista.sort((a, b) => b.fecha - a.fecha);
+    } catch { return []; }
+  }
+  async function operarHallazgo(op, valor) {
+    const db = await abrirDB();
+    await new Promise((ok, ko) => {
+      const tx = db.transaction("hallazgos", "readwrite");
+      tx.objectStore("hallazgos")[op](valor);
+      tx.oncomplete = ok;
+      tx.onerror = () => ko(tx.error);
+    });
   }
 
   /* ---------------- Base de datos compartida (Supabase) ----------------
@@ -243,6 +274,7 @@
     $$(".vista").forEach((v) => (v.hidden = v.id !== "vista-" + vista));
     $$("#navegacion button").forEach((b) => b.classList.toggle("activo", b.dataset.vista === vista));
     if (vista === "jugar") menuJuegos();
+    if (vista === "identifica") renderHallazgos();
     window.scrollTo(0, 0);
     ls.set("vista", vista);
   }
@@ -250,6 +282,57 @@
     const b = ev.target.closest("[data-vista]");
     if (b) irA(b.dataset.vista);
   });
+
+  /* =========================================================
+   * PROGRESO — qué especies te sabes y racha de días estudiando
+   *   progreso: { id: { a: aciertos, f: fallos, u: acertó la última } }
+   *   diasEstudio: [número de día, ...]
+   * ========================================================= */
+  const progreso = () => ls.get("progreso", {});
+  function registrarRespuesta(id, bien) {
+    const p = progreso();
+    const r = p[id] || { a: 0, f: 0, u: false };
+    if (bien) r.a++; else r.f++;
+    r.u = bien;
+    p[id] = r;
+    ls.set("progreso", p);
+    marcarDiaEstudio();
+  }
+  function estaSabida(id) {
+    const r = progreso()[id];
+    return !!r && r.a >= 2 && r.u;
+  }
+  function marcarDiaEstudio() {
+    const dias = ls.get("diasEstudio", []);
+    const hoy = numeroDeDia();
+    if (!dias.includes(hoy)) { dias.push(hoy); ls.set("diasEstudio", dias.slice(-400)); }
+    renderProgreso();
+  }
+  function racha() {
+    const dias = new Set(ls.get("diasEstudio", []));
+    let d = numeroDeDia();
+    if (!dias.has(d)) d--; // si hoy aún no ha estudiado, la racha de ayer sigue viva
+    let n = 0;
+    while (dias.has(d)) { n++; d--; }
+    return n;
+  }
+  function renderProgreso() {
+    const cont = $("#progreso");
+    if (!cont) return;
+    const lista = todasLasEspecies();
+    const sabidas = lista.filter((e) => estaSabida(e.id)).length;
+    const r = racha();
+    const estudiadoHoy = ls.get("diasEstudio", []).includes(numeroDeDia());
+    cont.innerHTML = `
+      <div class="progreso-tarjeta">
+        <div class="progreso-cifras">
+          <div><b>${sabidas}<small>/${lista.length}</small></b><span>especies que te sabes</span></div>
+          <div><b>${r}</b><span>${r === 1 ? "día" : "días"} de racha${estudiadoHoy ? "" : r ? " · ¡estudia hoy!" : ""}</span></div>
+        </div>
+        <div class="progreso"><div style="width:${lista.length ? (sabidas / lista.length) * 100 : 0}%"></div></div>
+        <p>${sabidas === lista.length && lista.length ? "¡Te las sabes todas!" : "Una especie cuenta como sabida cuando la aciertas 2 veces en los juegos (y la última vez, bien)."}</p>
+      </div>`;
+  }
 
   /* =========================================================
    * INICIO — especie del día
@@ -318,6 +401,7 @@
     const giro = $("#giro");
     giro.classList.toggle("girada");
     ls.set("giradaDia", giro.classList.contains("girada") ? numeroDeDia() : null);
+    if (giro.classList.contains("girada")) marcarDiaEstudio();
   }
   $("#giro").addEventListener("click", (ev) => {
     const acc = ev.target.closest("[data-accion]");
@@ -398,6 +482,7 @@
         <div class="rejilla-plantas">
           ${es.map((e) => `
             <article class="planta" data-id="${esc(e.id)}" tabindex="0">
+              ${estaSabida(e.id) ? `<span class="marca-sabida" title="Te la sabes">${ICONO.check}</span>` : ""}
               ${htmlFoto(e, "planta", e.nombres.lat)}
               <h3>${esc(e.nombres.ca)}</h3>
               <p>${esc(e.nombres.es)}</p>
@@ -411,7 +496,9 @@
 
   /* ---------------- Ficha de detalle ---------------- */
   const dlgFicha = $("#dlg-ficha");
-  let pestana = "identificacion";
+  const TIPOS_FOTO = [["planta", "Planta entera"], ["hoja", "Hoja"], ["flor", "Flor"], ["fruto", "Fruto"], ["tronco", "Tronco / tallo"]];
+  const MESES = ["E", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
+  const MESES_LARGOS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
   function cifraAltura(t) {
     const m = String(t || "").match(/(\d+(?:[.,]\d+)?(?:\s*[–-]\s*\d+(?:[.,]\d+)?)?)\s*m\b/);
@@ -422,14 +509,96 @@
     return nums.length ? "−" + Math.max(...nums) : "";
   }
 
+  /* Pronunciación con la voz del sistema */
+  const IDIOMA_VOZ = { ca: "ca-ES", es: "es-ES", lat: "es-ES" };
+  function hablar(texto, idioma) {
+    if (!("speechSynthesis" in window)) { alert("Este dispositivo no puede leer en voz alta."); return; }
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(texto);
+    u.lang = IDIOMA_VOZ[idioma] || "es-ES";
+    const voz = speechSynthesis.getVoices().find((v) => v.lang.replace("_", "-").startsWith(u.lang.slice(0, 2)));
+    if (voz) u.voice = voz;
+    u.rate = idioma === "lat" ? 0.8 : 0.95;
+    speechSynthesis.speak(u);
+  }
+  const botonVoz = (texto, idioma, etiqueta) =>
+    `<button class="voz" data-voz="${esc(texto)}" data-idioma="${idioma}" aria-label="Escuchar ${esc(etiqueta)}" title="Escuchar">${ICONO.altavoz}</button>`;
+
+  /* Calendario de 12 meses */
+  function htmlCalendario(cal) {
+    if (!cal) return "";
+    const filas = [["flor", "Floración"], ["fruto", "Fruto"], ["poda", "Poda"]].filter(([k]) => cal[k]?.length);
+    if (!filas.length) return "";
+    const mesActual = new Date().getMonth() + 1;
+    return `
+      <div class="calendario">
+        <div class="cal-fila cal-meses"><span></span>${MESES.map((m, i) => `<i class="${i + 1 === mesActual ? "hoy" : ""}">${m}</i>`).join("")}</div>
+        ${filas.map(([k, t]) => `
+          <div class="cal-fila"><span>${t}</span>${MESES.map((_, i) => `<i class="${cal[k].includes(i + 1) ? "on " + k : ""}" title="${cal[k].includes(i + 1) ? t + " en " + MESES_LARGOS[i] : ""}"></i>`).join("")}</div>`).join("")}
+      </div>`;
+  }
+
+  /* Secciones de la ficha: se usan en la app (desplegables) y en el PDF */
+  function seccionesFicha(e, paraPdf = false) {
+    const f = e.ficha || {};
+    const G = window.GLOSARIO || {};
+    const j = e.jardineria || {};
+    const fila = (k, v) => (v ? `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>` : "");
+    const lista = (arr, cls = "lista-simple") => (arr?.length ? `<ul class="${cls}">${arr.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "");
+    const fotos = TIPOS_FOTO.filter(([t]) => e.fotos?.[t] && t !== "planta" && t !== "hoja");
+    const secciones = [
+      { id: "descripcion", titulo: "Descripción", html: `<p>${esc(e.descripcion)}</p>` },
+      { id: "identificacion", titulo: "Cómo identificarla", html: lista(e.identificacion, "clave") },
+      !paraPdf && fotos.length && {
+        id: "galeria", titulo: `Más fotos <small>${fotos.map(([, t]) => t.toLowerCase()).join(", ")}</small>`,
+        html: `<div class="galeria">${fotos.map(([t, n]) => `
+          <figure><div data-zoom>${htmlFoto(e, t, n)}</div><figcaption>${n}</figcaption>${htmlCredito(e, t)}</figure>`).join("")}</div>`,
+      },
+      e.confusion?.length && {
+        id: "confusion", titulo: "No confundir con",
+        html: `<ul class="lista-conf">${e.confusion.map((c) => {
+          const otra = porId(c.id);
+          if (!otra) return `<li><i>${esc(c.id)}</i>: ${esc(c.diferencia)}</li>`;
+          return `<li>
+            <div><b>${paraPdf ? esc(otra.nombres.ca) : `<a href="#" data-ir="${esc(otra.id)}">${esc(otra.nombres.ca)}</a>`}</b> <i>(${esc(otra.nombres.lat)})</i><br>${esc(c.diferencia)}</div>
+            ${paraPdf ? "" : `<button class="btn mini" data-comparar="${esc(otra.id)}">${ICONO.comparar} Comparar</button>`}
+          </li>`;
+        }).join("")}</ul>`,
+      },
+      e.calendario && { id: "calendario", titulo: "Calendario", html: htmlCalendario(e.calendario) },
+      Object.keys(j).length && {
+        id: "jardineria", titulo: "Jardinería",
+        html: `<dl class="tabla">${fila("Exposición", j.exposicion)}${fila("Riego", j.riego)}${fila("Suelo", j.suelo)}${fila("Poda", j.poda)}${fila("Plagas y problemas", j.plagas)}${fila("Usos", e.usos)}</dl>`,
+      },
+      {
+        id: "ficha", titulo: "Ficha técnica",
+        html: `<dl class="tabla">
+          ${fila("Nombre científico", e.nombres.lat)}${fila("Catalán", e.nombres.ca)}${fila("Castellano", e.nombres.es)}
+          ${fila("Otros nombres", e.otrosNombres)}${fila("Grupo", e.grupo)}${fila("Familia", e.familia)}
+          ${fila("Tipo de hoja", e.tipoHoja ? mayus(e.tipoHoja) + (G[e.tipoHoja] ? ". " + G[e.tipoHoja] : "") : "")}
+          ${fila("Follaje", mayus(e.follaje))}${fila("Cómo trepa", e.trepa)}${fila("Tronco / tallos", f.tronco || e.tronco)}
+          ${fila("Hojas", f.hojas)}${fila("Flores", f.flores)}${fila("Fruto", f.fruto)}
+          ${fila("Altura", e.altura)}${fila("Origen", e.origen)}${fila("Autóctona", e.autoctona ? "Sí" : "No")}
+          ${fila("Resistencia al frío", e.rusticidad)}
+        </dl>`,
+      },
+      e.curiosidades?.length && { id: "curiosidades", titulo: "Curiosidades", html: lista(e.curiosidades) },
+    ];
+    return secciones.filter(Boolean);
+  }
+
+  // Qué apartados están desplegados (se recuerda entre fichas)
+  const abiertasPorDefecto = ["descripcion", "identificacion"];
+  const seccionesAbiertas = () => ls.get("seccionesAbiertas", abiertasPorDefecto);
+
   function abrirFicha(id) {
     const e = porId(id);
     if (!e) return;
-    const f = e.ficha || {};
-    const G = window.GLOSARIO || {};
     const alt = cifraAltura(e.altura);
     const frio = cifraFrio(e.rusticidad);
     const editada = estado.especies[e.id] && baseIds.has(e.id);
+    const abiertas = seccionesAbiertas();
+    const sabida = estaSabida(e.id);
 
     const stats = [
       alt && `<li><b>${esc(alt)}<sup>m</sup></b><span>Altura</span></li>`,
@@ -437,56 +606,13 @@
       e.tipoHoja && `<li><b>${esc(mayus(e.tipoHoja))}</b><span>Hoja${e.follaje ? " " + esc(e.follaje === "caduco" ? "caduca" : "perenne") : ""}</span></li>`,
     ].filter(Boolean).join("");
 
-    const fila = (k, v) => (v ? `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>` : "");
-    const lista = (arr, cls = "lista-simple") => (arr?.length ? `<ul class="${cls}">${arr.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "");
-    const confusiones = (e.confusion || []).map((c) => {
-      const otra = porId(c.id);
-      const nombre = otra ? `<a href="#" data-ir="${esc(otra.id)}">${esc(otra.nombres.ca)} (<i>${esc(otra.nombres.lat)}</i>)</a>` : `<i>${esc(c.id)}</i>`;
-      return `<li>${nombre}: ${esc(c.diferencia)}</li>`;
-    }).join("");
-
-    const contenidoIdent = `
-      <h3>Descripción</h3>
-      <p>${esc(e.descripcion)}</p>
-      ${e.identificacion?.length ? `<h3>Cómo identificarla</h3>${lista(e.identificacion, "clave")}` : ""}
-      ${confusiones ? `<h3>No confundir con</h3><ul class="lista-simple">${confusiones}</ul>` : ""}`;
-
-    const contenidoInfo = `
-      <h3>Ficha</h3>
-      <dl class="tabla">
-        ${fila("Nombre científico", e.nombres.lat)}
-        ${fila("Catalán", e.nombres.ca)}
-        ${fila("Castellano", e.nombres.es)}
-        ${fila("Otros nombres", e.otrosNombres)}
-        ${fila("Grupo", e.grupo)}
-        ${fila("Familia", e.familia)}
-        ${fila("Tipo de hoja", e.tipoHoja ? mayus(e.tipoHoja) + (G[e.tipoHoja] ? ". " + G[e.tipoHoja] : "") : "")}
-        ${fila("Follaje", mayus(e.follaje))}
-        ${fila("Cómo trepa", e.trepa)}
-        ${fila("Tronco / tallos", f.tronco || e.tronco)}
-        ${fila("Hojas", f.hojas)}
-        ${fila("Flores", f.flores)}
-        ${fila("Fruto", f.fruto)}
-        ${fila("Altura", e.altura)}
-        ${fila("Origen", e.origen)}
-        ${fila("Autóctona", e.autoctona ? "Sí" : "No")}
-        ${fila("Resistencia al frío", e.rusticidad)}
-        ${fila("Usos en jardinería", e.usos)}
-      </dl>
-      ${e.curiosidades?.length ? `<h3>Curiosidades</h3>${lista(e.curiosidades)}` : ""}
-      <div class="acciones-ficha">
-        <span class="fuente">${{ curso: "Especie del recull del curso", usuario: "Especie creada por ti" }[e.fuente] || ""}${editada ? " · editada" : ""}</span>
-        <span class="botones">
-          ${editada ? `<button class="btn" data-restaurar>Restaurar original</button>` : ""}
-          <button class="btn peligro" data-borrar>Eliminar</button>
-          <button class="btn principal" data-editar>Editar</button>
-        </span>
-      </div>`;
-
     dlgFicha.innerHTML = `
       <div class="ficha-cab">
         <button class="volver" data-cerrar>${ICONO.volver} Volver</button>
-        <button class="pastilla" data-editar>Editar</button>
+        <span class="botones-cab">
+          <button class="pastilla" data-pdf>${ICONO.pdf} PDF</button>
+          <button class="pastilla" data-editar>Editar</button>
+        </span>
       </div>
       <section class="hero">
         <div>
@@ -494,8 +620,10 @@
           ${htmlCredito(e, "planta")}
         </div>
         <div>
-          <h2>${esc(e.nombres.ca)}</h2>
-          <p class="sub">${esc(e.nombres.es)} · <i>${esc(e.nombres.lat)}</i></p>
+          ${sabida ? `<span class="sello si mini">${ICONO.check} Te la sabes</span>` : ""}
+          <h2>${esc(e.nombres.ca)} ${botonVoz(e.nombres.ca, "ca", "el nombre en catalán")}</h2>
+          <p class="sub">${esc(e.nombres.es)} ${botonVoz(e.nombres.es, "es", "el nombre en castellano")}</p>
+          <p class="sub"><i>${esc(e.nombres.lat)}</i> ${botonVoz(e.nombres.lat, "lat", "el nombre científico")}</p>
           <p class="grupo">${esc([e.grupo, e.familia].filter(Boolean).join(" · "))}</p>
           <ul class="stats">${stats}</ul>
         </div>
@@ -512,24 +640,43 @@
             <p>${esc(e.identificacion?.[0] || e.descripcion || "")}</p>
           </div>
         </div>
-        <div class="pestanas">
-          <button data-pestana="identificacion" class="${pestana === "identificacion" ? "activo" : ""}">${ICONO.lupa} Identificación</button>
-          <button data-pestana="info" class="${pestana === "info" ? "activo" : ""}">${ICONO.info} Información</button>
+        <div class="acordeones">
+          <div class="acordeon-controles">
+            <button class="enlace" data-todas="1">Desplegar todo</button>
+            <button class="enlace" data-todas="0">Plegar todo</button>
+          </div>
+          ${seccionesFicha(e).map((s) => `
+            <details class="acordeon" data-sec="${s.id}" ${abiertas.includes(s.id) ? "open" : ""}>
+              <summary><span>${s.titulo}</span>${ICONO.flecha}</summary>
+              <div class="acordeon-cuerpo">${s.html}</div>
+            </details>`).join("")}
         </div>
-        <div class="contenido">${pestana === "info" ? contenidoInfo : contenidoIdent}</div>
+        <div class="acciones-ficha">
+          <span class="fuente">${{ curso: "Especie del recull del curso", usuario: "Especie creada por ti" }[e.fuente] || ""}${editada ? " · editada" : ""}</span>
+          <span class="botones">
+            ${editada ? `<button class="btn" data-restaurar>Restaurar original</button>` : ""}
+            <button class="btn peligro" data-borrar>Eliminar</button>
+          </span>
+        </div>
       </section>`;
+
+    // Recordar qué apartados se despliegan
+    $$("details.acordeon", dlgFicha).forEach((d) => d.addEventListener("toggle", () => {
+      ls.set("seccionesAbiertas", $$("details.acordeon[open]", dlgFicha).map((x) => x.dataset.sec));
+    }));
 
     dlgFicha.onclick = async (ev) => {
       const t = ev.target;
       if (t.closest("[data-cerrar]")) dlgFicha.close();
+      else if (t.closest("[data-voz]")) { const b = t.closest("[data-voz]"); hablar(b.dataset.voz, b.dataset.idioma); }
       else if (t.closest("[data-zoom] img")) verFoto(t.closest("img").src);
-      else if (t.closest("[data-pestana]")) {
-        pestana = t.closest("[data-pestana]").dataset.pestana;
-        const y = dlgFicha.scrollTop;
-        abrirFicha(e.id);
-        dlgFicha.scrollTop = y;
+      else if (t.closest("[data-todas]")) {
+        const abrir = t.closest("[data-todas]").dataset.todas === "1";
+        $$("details.acordeon", dlgFicha).forEach((d) => (d.open = abrir));
       }
-      else if (t.closest("[data-ir]")) { ev.preventDefault(); pestana = "identificacion"; abrirFicha(t.closest("[data-ir]").dataset.ir); dlgFicha.scrollTop = 0; }
+      else if (t.closest("[data-comparar]")) abrirComparador(e.id, t.closest("[data-comparar]").dataset.comparar);
+      else if (t.closest("[data-pdf]")) imprimirFicha(e);
+      else if (t.closest("[data-ir]")) { ev.preventDefault(); abrirFicha(t.closest("[data-ir]").dataset.ir); dlgFicha.scrollTop = 0; }
       else if (t.closest("[data-editar]")) {
         if (!(await asegurarClave())) return;
         dlgFicha.close(); abrirFormulario(e.id);
@@ -548,7 +695,93 @@
 
     if (!dlgFicha.open) { dlgFicha.showModal(); dlgFicha.scrollTop = 0; }
   }
-  dlgFicha.addEventListener("close", () => { pestana = "identificacion"; });
+
+  /* ---------------- Comparador de especies ---------------- */
+  const dlgComparar = $("#dlg-comparar");
+  function abrirComparador(idA, idB) {
+    const a = porId(idA), b = porId(idB);
+    if (!a || !b) return;
+    const todas = todasLasEspecies();
+    const selector = (actual, lado) => `
+      <select data-lado="${lado}">${todas.map((x) => `<option value="${esc(x.id)}" ${x.id === actual ? "selected" : ""}>${esc(x.nombres.ca)}</option>`).join("")}</select>`;
+    const dif = (a.confusion || []).find((c) => c.id === b.id)?.diferencia || (b.confusion || []).find((c) => c.id === a.id)?.diferencia;
+    const col = (e) => e.jardineria || {};
+    const filas = [
+      ["Nombre científico", (e) => `<i>${esc(e.nombres.lat)}</i>`],
+      ["Castellano", (e) => esc(e.nombres.es)],
+      ["Familia", (e) => esc(e.familia)],
+      ["Tipo de hoja", (e) => esc(mayus(e.tipoHoja))],
+      ["Follaje", (e) => esc(mayus(e.follaje))],
+      ["Tronco / tallos", (e) => esc(e.ficha?.tronco || e.tronco)],
+      ["Hojas", (e) => esc(e.ficha?.hojas)],
+      ["Fruto", (e) => esc(e.ficha?.fruto)],
+      ["Altura", (e) => esc(e.altura)],
+      ["Frío", (e) => esc(e.rusticidad)],
+      ["Origen", (e) => esc(e.origen)],
+      ["Exposición", (e) => esc(col(e).exposicion)],
+    ];
+    dlgComparar.innerHTML = `
+      <div class="ficha-cab oscuro">
+        <button class="volver" data-cerrar>${ICONO.volver} Volver</button>
+        <strong>Comparar</strong>
+        <span style="width:70px"></span>
+      </div>
+      <div class="comparador">
+        <div class="comp-cols">
+          ${[a, b].map((e, i) => `
+            <div class="comp-col">
+              ${selector(e.id, i)}
+              <div data-zoom>${htmlFoto(e, "planta", e.nombres.ca)}</div>
+              <div data-zoom>${htmlFoto(e, "hoja", "Hoja")}</div>
+              <h3>${esc(e.nombres.ca)}</h3>
+            </div>`).join("")}
+        </div>
+        ${dif ? `<div class="comp-dif"><strong>La diferencia clave</strong><p>${esc(dif)}</p></div>` : ""}
+        <div class="comp-tabla">
+          ${filas.map(([t, fn]) => `<div class="comp-fila"><span class="comp-t">${t}</span><div>${fn(a) || "—"}</div><div>${fn(b) || "—"}</div></div>`).join("")}
+          <div class="comp-fila"><span class="comp-t">Cómo reconocerla</span>
+            ${[a, b].map((e) => `<div><ul>${(e.identificacion || []).slice(0, 3).map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`).join("")}
+          </div>
+        </div>
+      </div>`;
+    dlgComparar.onclick = (ev) => {
+      if (ev.target.closest("[data-cerrar]")) dlgComparar.close();
+      else if (ev.target.closest("[data-zoom] img")) verFoto(ev.target.closest("img").src);
+    };
+    dlgComparar.onchange = (ev) => {
+      const s = ev.target.closest("select[data-lado]");
+      if (!s) return;
+      const ids = $$("select[data-lado]", dlgComparar).map((x) => x.value);
+      abrirComparador(ids[0], ids[1]);
+    };
+    if (!dlgComparar.open) dlgComparar.showModal();
+    dlgComparar.scrollTop = 0;
+  }
+
+  /* ---------------- Exportar ficha a PDF (imprimir) ---------------- */
+  function imprimirFicha(e) {
+    const zona = $("#impresion");
+    const fotos = TIPOS_FOTO.filter(([t]) => e.fotos?.[t]);
+    zona.innerHTML = `
+      <article class="pdf">
+        <header>
+          <p class="pdf-grupo">${esc([e.grupo, e.familia].filter(Boolean).join(" · "))}</p>
+          <h1>${esc(e.nombres.ca)}</h1>
+          <p class="pdf-sub">${esc(e.nombres.es)} · <i>${esc(e.nombres.lat)}</i></p>
+        </header>
+        <div class="pdf-fotos">${fotos.map(([t, n]) => `<figure><img src="${esc(e.fotos[t])}" alt=""><figcaption>${n}</figcaption></figure>`).join("")}</div>
+        ${seccionesFicha(e, true).map((s) => `<section><h2>${s.titulo}</h2>${s.html}</section>`).join("")}
+        <footer>Herbario · Base de datos botánica — ${new Date().toLocaleDateString("es-ES")}</footer>
+      </article>`;
+    const imgs = $$("img", zona);
+    Promise.all(imgs.map((i) => (i.complete ? null : new Promise((r) => { i.onload = i.onerror = r; }))))
+      .then(() => {
+        document.title = `${e.nombres.ca} - ficha`;
+        window.print();
+        document.title = "Herbario · Base de datos botánica";
+      });
+  }
+  window.addEventListener("afterprint", () => { $("#impresion").innerHTML = ""; });
 
   const dlgFoto = $("#dlg-foto");
   function verFoto(src) {
@@ -593,10 +826,22 @@
           <p class="record">${recQuiz != null ? `Mejor puntuación: ${recQuiz}/10` : "Aún sin puntuación"}</p>
           <span class="boton-giro"><span></span></span>
         </button>
+        <button class="juego-tarjeta verde" data-juego="vf">
+          <h2>¿Verdadero o falso?</h2>
+          <p>10 afirmaciones sobre los rasgos de cada especie.</p>
+          <p class="record">${ls.get("recordVF", null) != null ? `Mejor puntuación: ${ls.get("recordVF")}/10` : "Aún sin puntuación"}</p>
+          <span class="boton-giro"><span></span></span>
+        </button>
+        <button class="juego-tarjeta" data-juego="ordena">
+          <h2>Ordena</h2>
+          <p>Ordena especies por altura o por resistencia al frío.</p>
+          <p class="record">${ls.get("recordOrdena", null) != null ? `Mejor puntuación: ${ls.get("recordOrdena")}/5` : "Aún sin puntuación"}</p>
+          <span class="boton-giro"><span></span></span>
+        </button>
       </div>`;
     juego.onclick = (ev) => {
       const b = ev.target.closest("[data-juego]");
-      if (b) (b.dataset.juego === "memory" ? opcionesMemory : opcionesQuiz)();
+      if (b) ({ memory: opcionesMemory, quiz: opcionesQuiz, vf: opcionesVF, ordena: opcionesOrdena })[b.dataset.juego]();
     };
   }
 
@@ -701,6 +946,7 @@
 
   function finMemory(movimientos, tiempo, pares) {
     pararTemporizador();
+    marcarDiaEstudio();
     const rec = ls.get("recordMemory", null);
     const nuevo = !rec || movimientos < rec.movimientos;
     if (nuevo) ls.set("recordMemory", { movimientos, tiempo });
@@ -766,6 +1012,7 @@
         const p = preguntas[n];
         const bien = b.dataset.id === p.e.id;
         if (bien) puntos++;
+        registrarRespuesta(p.e.id, bien);
         $$(".respuestas button", juego).forEach((x) => {
           x.disabled = true;
           if (x.dataset.id === p.e.id) x.classList.add("bien");
@@ -798,6 +1045,207 @@
       }
       if (ev.target.closest("[data-otra]")) empezarQuiz();
       if (ev.target.closest("[data-menu]")) menuJuegos();
+    };
+    cabeceraJuego(true);
+    pintar();
+  }
+
+  /* ---------- Pantalla de resultado común ---------- */
+  function pantallaResultado(puntos, total, claveRecord, alRepetir) {
+    const rec = ls.get(claveRecord, null);
+    const nuevo = rec == null || puntos > rec;
+    if (nuevo) ls.set(claveRecord, puntos);
+    marcarDiaEstudio();
+    const r = puntos / total;
+    juego.innerHTML = `
+      <div class="resultado">
+        <b>${puntos}/${total}</b>
+        <p>${r === 1 ? "¡Perfecto!" : r >= 0.7 ? "¡Muy bien!" : r >= 0.5 ? "Vas por buen camino." : "A repasar un poco el herbario."}${nuevo ? " · ¡Nuevo récord!" : ""}</p>
+        <div class="dorso-botones">
+          <button class="btn claro" data-otra>Jugar otra vez</button>
+          <button class="btn" data-menu>Salir</button>
+        </div>
+      </div>`;
+    juego.onclick = (ev) => {
+      if (ev.target.closest("[data-otra]")) alRepetir();
+      if (ev.target.closest("[data-menu]")) menuJuegos();
+    };
+  }
+
+  /* ---------- VERDADERO O FALSO ---------- */
+  function opcionesVF() { pantallaOpciones("¿Verdadero o falso?", "", empezarVF); }
+
+  function crearAfirmacion(e, pool) {
+    const azar = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    const verdadera = Math.random() < 0.5;
+    // Rasgos de otra especie claramente distinta (otro grupo u otro tipo de hoja)
+    const distintas = pool.filter((o) => o.id !== e.id && (o.grupo !== e.grupo || o.tipoHoja !== e.tipoHoja) && o.identificacion?.length);
+    const tipo = Math.random();
+    if (tipo < 0.7 && e.identificacion?.length && (verdadera || distintas.length)) {
+      if (verdadera) return { texto: azar(e.identificacion), verdadera, explicacion: "Es uno de sus rasgos para identificarla." };
+      const o = azar(distintas);
+      return { texto: azar(o.identificacion), verdadera, explicacion: `Ese rasgo es de ${o.nombres.ca} (${o.nombres.lat}), no de esta especie.` };
+    }
+    if (tipo < 0.85 || !e.origen) {
+      return {
+        texto: "Es una especie autóctona de Cataluña.",
+        verdadera: !!e.autoctona,
+        explicacion: e.autoctona ? "Sí: es autóctona." : `No: es originaria de ${e.origen}.`,
+      };
+    }
+    const otrosOrigenes = pool.filter((o) => o.origen && norm(o.origen) !== norm(e.origen));
+    if (verdadera || !otrosOrigenes.length) return { texto: `Es originaria de: ${e.origen}.`, verdadera: true, explicacion: "Correcto, ese es su origen." };
+    return { texto: `Es originaria de: ${azar(otrosOrigenes).origen}.`, verdadera: false, explicacion: `No: es originaria de ${e.origen}.` };
+  }
+
+  function empezarVF() {
+    const pool = especiesDeGrupo(opcionesGuardadas.grupo);
+    if (pool.length < 2) { alert("Se necesitan al menos 2 especies."); return; }
+    let orden = [];
+    while (orden.length < 10) orden.push(...barajar(pool));
+    const preguntas = orden.slice(0, 10).map((e) => ({ e, ...crearAfirmacion(e, todasLasEspecies()) }));
+    let n = 0, puntos = 0;
+
+    const pintar = () => {
+      const p = preguntas[n];
+      juego.innerHTML = `
+        <div class="pregunta">
+          <div class="progreso"><div style="width:${(n / preguntas.length) * 100}%"></div></div>
+          <div class="marcador" style="grid-template-columns:1fr 1fr">
+            <div><b>${n + 1}/${preguntas.length}</b><span>Pregunta</span></div>
+            <div><b>${puntos}</b><span>Aciertos</span></div>
+          </div>
+          <div class="vf-cab">
+            <div data-zoom>${htmlFoto(p.e, "planta", p.e.nombres.ca)}</div>
+            <div><strong>${esc(p.e.nombres.ca)}</strong><small>${esc(p.e.nombres.es)} · <i>${esc(p.e.nombres.lat)}</i></small></div>
+          </div>
+          <p class="afirmacion">«${esc(p.texto)}»</p>
+          <div class="vf-botones">
+            <button class="btn principal" data-vf="1">Verdadero</button>
+            <button class="btn" data-vf="0">Falso</button>
+          </div>
+          <div id="explicacion"></div>
+        </div>`;
+    };
+
+    juego.onclick = (ev) => {
+      if (ev.target.closest("[data-zoom] img")) { verFoto(ev.target.closest("img").src); return; }
+      const b = ev.target.closest("[data-vf]");
+      if (b && !b.disabled) {
+        const p = preguntas[n];
+        const bien = (b.dataset.vf === "1") === p.verdadera;
+        if (bien) puntos++;
+        registrarRespuesta(p.e.id, bien);
+        $$("[data-vf]", juego).forEach((x) => {
+          x.disabled = true;
+          if ((x.dataset.vf === "1") === p.verdadera) x.classList.add("bien");
+          else x.classList.add("mal");
+        });
+        $("#explicacion").innerHTML = `
+          <div class="explicacion"><strong>${bien ? "¡Correcto!" : "¡Casi!"}</strong> Era <b>${p.verdadera ? "verdadero" : "falso"}</b>. ${esc(p.explicacion)}</div>
+          <div class="dorso-botones"><button class="btn principal" data-siguiente style="flex:1">${n + 1 < preguntas.length ? "Siguiente" : "Ver resultado"}</button></div>`;
+        return;
+      }
+      if (ev.target.closest("[data-siguiente]")) {
+        n++;
+        if (n < preguntas.length) { pintar(); window.scrollTo(0, 0); }
+        else pantallaResultado(puntos, preguntas.length, "recordVF", empezarVF);
+      }
+    };
+    cabeceraJuego(true);
+    pintar();
+  }
+
+  /* ---------- ORDENA ---------- */
+  function opcionesOrdena() { pantallaOpciones("Ordena", "", empezarOrdena); }
+
+  const valorAltura = (e) => {
+    const t = cifraAltura(e.altura);
+    const nums = (t.match(/\d+(?:[.,]\d+)?/g) || []).map((x) => parseFloat(x.replace(",", ".")));
+    return nums.length ? Math.max(...nums) : null;
+  };
+  const valorFrio = (e) => { const t = cifraFrio(e.rusticidad); return t ? -parseInt(t.replace("−", ""), 10) : null; };
+  const CRITERIOS = [
+    { id: "altura", titulo: "De más baja a más alta", valor: valorAltura, formato: (v, e) => `hasta ${v} m`, unidad: "altura máxima" },
+    { id: "frio", titulo: "De menos a más resistente al frío", valor: (e) => { const v = valorFrio(e); return v == null ? null : -v; }, formato: (v) => `hasta −${v} °C`, unidad: "resistencia al frío" },
+  ];
+
+  function empezarOrdena() {
+    const pool = especiesDeGrupo(opcionesGuardadas.grupo);
+    const rondas = [];
+    for (let i = 0; i < 5; i++) {
+      const c = CRITERIOS[i % 2 === 0 ? 0 : 1];
+      const conValor = barajar(pool.filter((e) => c.valor(e) != null));
+      const elegidas = [];
+      const usados = new Set();
+      for (const e of conValor) {
+        const v = c.valor(e);
+        if (usados.has(v)) continue;
+        usados.add(v); elegidas.push(e);
+        if (elegidas.length === 4) break;
+      }
+      if (elegidas.length >= 3) rondas.push({ c, especies: elegidas });
+    }
+    if (!rondas.length) { alert("No hay suficientes especies con datos distintos de altura o frío para este grupo."); return; }
+    let n = 0, puntos = 0, elegidas = [];
+
+    const pintar = () => {
+      const r = rondas[n];
+      juego.innerHTML = `
+        <div class="pregunta">
+          <div class="progreso"><div style="width:${(n / rondas.length) * 100}%"></div></div>
+          <div class="marcador" style="grid-template-columns:1fr 1fr">
+            <div><b>${n + 1}/${rondas.length}</b><span>Ronda</span></div>
+            <div><b>${puntos}</b><span>Aciertos</span></div>
+          </div>
+          <h2>${r.c.titulo}</h2>
+          <p class="nota-dia" style="margin:0 0 12px">Toca las especies en orden. Toca otra vez para deshacer.</p>
+          <div class="ordena">
+            ${r.especies.map((e) => `
+              <button class="ordena-item" data-id="${esc(e.id)}">
+                ${htmlFoto(e, "planta", e.nombres.ca)}
+                <span class="ordena-num"></span>
+                <span class="ordena-nombre">${esc(e.nombres.ca)}</span>
+              </button>`).join("")}
+          </div>
+          <div id="explicacion"></div>
+        </div>`;
+      elegidas = [];
+    };
+
+    const comprobar = () => {
+      const r = rondas[n];
+      const correcto = [...r.especies].sort((a, b) => r.c.valor(a) - r.c.valor(b));
+      const bien = correcto.every((e, i) => e.id === elegidas[i]);
+      if (bien) puntos++;
+      marcarDiaEstudio();
+      $$(".ordena-item", juego).forEach((x) => { x.disabled = true; x.classList.add(correcto.findIndex((e) => e.id === x.dataset.id) === elegidas.indexOf(x.dataset.id) ? "bien" : "mal"); });
+      $("#explicacion").innerHTML = `
+        <div class="explicacion"><strong>${bien ? "¡Correcto!" : "El orden correcto era:"}</strong>
+          <ol class="orden-correcto">${correcto.map((e) => `<li><b>${esc(e.nombres.ca)}</b> — ${esc(r.c.formato(r.c.valor(e), e))}</li>`).join("")}</ol>
+        </div>
+        <div class="dorso-botones"><button class="btn principal" data-siguiente style="flex:1">${n + 1 < rondas.length ? "Siguiente" : "Ver resultado"}</button></div>`;
+    };
+
+    juego.onclick = (ev) => {
+      const it = ev.target.closest(".ordena-item");
+      if (it && !it.disabled) {
+        const id = it.dataset.id;
+        if (elegidas.includes(id)) elegidas = elegidas.slice(0, elegidas.indexOf(id));
+        else elegidas.push(id);
+        $$(".ordena-item", juego).forEach((x) => {
+          const i = elegidas.indexOf(x.dataset.id);
+          $(".ordena-num", x).textContent = i >= 0 ? i + 1 : "";
+          x.classList.toggle("elegida", i >= 0);
+        });
+        if (elegidas.length === rondas[n].especies.length) comprobar();
+        return;
+      }
+      if (ev.target.closest("[data-siguiente]")) {
+        n++;
+        if (n < rondas.length) { pintar(); window.scrollTo(0, 0); }
+        else pantallaResultado(puntos, rondas.length, "recordOrdena", empezarOrdena);
+      }
     };
     cabeceraJuego(true);
     pintar();
@@ -1016,20 +1464,185 @@
         }).join("")}
       </section>` : "";
 
+    ultimoResultado = {
+      foto, cientifico, score: mejor.score, especieId: enHerbario?.especie.id || null,
+      nombre: enHerbario ? enHerbario.especie.nombres.ca : mayus((mejor.species.commonNames || [])[0] || cientifico),
+      familia: mejor.species.family?.scientificNameWithoutAuthor || "",
+    };
     idResultado.innerHTML = `
       ${tarjeta}
       ${alternativas}
-      <div class="pie-id"><button class="btn principal" data-otra>Identificar otra planta</button></div>
+      <div class="pie-id">
+        <button class="btn claro" data-guardar>Guardar en mis hallazgos</button>
+        <button class="btn principal" data-otra>Identificar otra</button>
+      </div>
       <p class="creditos-id">Identificación: Pl@ntNet · Información adicional: Wikipedia</p>`;
   }
 
-  idResultado.addEventListener("click", (ev) => {
+  idResultado.addEventListener("click", async (ev) => {
     const f = ev.target.closest("[data-ficha]");
     if (f) { ev.preventDefault(); abrirFicha(f.dataset.ficha); return; }
     if (ev.target.closest("[data-otra]")) volverACaptura();
+    const g = ev.target.closest("[data-guardar]");
+    if (g && !g.disabled) { g.disabled = true; g.textContent = "Guardando…"; await guardarHallazgoActual(); g.textContent = "Guardado ✓"; }
     const img = ev.target.closest(".fotos-id img");
     if (img) verFoto(img.src);
   });
+
+  /* ---------------- Mis hallazgos y mapa ---------------- */
+  let ultimoResultado = null;
+  let vistaHallazgos = "lista";
+  let mapa = null;
+
+  function miniatura(dataUrl, max = 700) {
+    return new Promise((ok) => {
+      const img = new Image();
+      img.onload = () => {
+        const k = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        ok(c.toDataURL("image/jpeg", 0.8));
+      };
+      img.onerror = () => ok(dataUrl);
+      img.src = dataUrl;
+    });
+  }
+  function ubicacionActual() {
+    return new Promise((ok) => {
+      if (!navigator.geolocation) return ok(null);
+      navigator.geolocation.getCurrentPosition(
+        (p) => ok({ lat: p.coords.latitude, lon: p.coords.longitude }),
+        () => ok(null),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      );
+    });
+  }
+  async function guardarHallazgoActual() {
+    if (!ultimoResultado) return;
+    const [foto, pos] = await Promise.all([miniatura(ultimoResultado.foto), ubicacionActual()]);
+    const h = { ...ultimoResultado, foto, id: "h" + Date.now(), fecha: Date.now(), lat: pos?.lat ?? null, lon: pos?.lon ?? null };
+    try {
+      await operarHallazgo("put", h);
+      if (!pos) alert("Guardado. No se ha podido obtener la ubicación, así que no saldrá en el mapa.");
+      marcarDiaEstudio();
+      renderHallazgos();
+    } catch (e) {
+      alert("No se ha podido guardar el hallazgo: " + e.message);
+    }
+  }
+
+  const fechaCorta = (t) => new Date(t).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
+
+  async function renderHallazgos() {
+    const cont = $("#hallazgos");
+    if (!cont) return;
+    const lista = await hallazgosTodos();
+    const conLugar = lista.filter((h) => h.lat != null);
+    cont.innerHTML = `
+      <div class="cab-seccion">
+        <h2>Mis hallazgos <small>${lista.length}</small></h2>
+        ${lista.length ? `<div class="chips conmutador">
+          <button data-vh="lista" class="${vistaHallazgos === "lista" ? "activo" : ""}">Lista</button>
+          <button data-vh="mapa" class="${vistaHallazgos === "mapa" ? "activo" : ""}">Mapa</button>
+        </div>` : ""}
+      </div>
+      ${!lista.length ? `<p class="vacio">Cuando identifiques una planta, pulsa «Guardar en mis hallazgos» y aparecerá aquí con la foto, la fecha y el lugar.</p>`
+        : vistaHallazgos === "mapa"
+          ? `<div id="mapa" class="mapa"></div>${conLugar.length < lista.length ? `<p class="nota-dia">${lista.length - conLugar.length} hallazgo(s) sin ubicación no aparecen en el mapa.</p>` : ""}`
+          : `<div class="rejilla-hallazgos">${lista.map((h) => `
+              <button class="hallazgo" data-h="${esc(h.id)}">
+                <img src="${h.foto}" alt="">
+                ${h.especieId ? `<span class="marca-sabida" title="En tu herbario">${ICONO.check}</span>` : ""}
+                <strong>${esc(h.nombre)}</strong>
+                <small>${fechaCorta(h.fecha)}</small>
+              </button>`).join("")}</div>`}`;
+    if (vistaHallazgos === "mapa" && lista.length) pintarMapa(conLugar);
+  }
+
+  $("#hallazgos").addEventListener("click", async (ev) => {
+    const vh = ev.target.closest("[data-vh]");
+    if (vh) { vistaHallazgos = vh.dataset.vh; renderHallazgos(); return; }
+    const h = ev.target.closest("[data-h]");
+    if (h) abrirHallazgo(h.dataset.h);
+  });
+
+  function cargarLeaflet() {
+    if (window.L) return Promise.resolve();
+    return new Promise((ok, ko) => {
+      const css = document.createElement("link");
+      css.rel = "stylesheet";
+      css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
+      document.head.appendChild(css);
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+      s.onload = ok; s.onerror = ko;
+      document.head.appendChild(s);
+    });
+  }
+
+  async function pintarMapa(lista) {
+    const div = $("#mapa");
+    try { await cargarLeaflet(); }
+    catch { div.innerHTML = `<p class="vacio">El mapa necesita conexión a internet.</p>`; return; }
+    if (mapa) { mapa.remove(); mapa = null; }
+    mapa = L.map(div, { scrollWheelZoom: false });
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19, attribution: "© OpenStreetMap",
+    }).addTo(mapa);
+    const puntos = [];
+    for (const h of lista) {
+      const m = L.circleMarker([h.lat, h.lon], {
+        radius: 9, color: "#fff", weight: 3, fillColor: h.especieId ? "#2f9a5b" : "#c79a2a", fillOpacity: 1,
+      }).addTo(mapa);
+      m.bindPopup(`<div class="popup-hallazgo"><img src="${h.foto}" alt=""><b>${esc(h.nombre)}</b><br><i>${esc(h.cientifico)}</i><br>${fechaCorta(h.fecha)}<br><a href="#" data-h="${esc(h.id)}">Ver detalle</a></div>`);
+      puntos.push([h.lat, h.lon]);
+    }
+    if (puntos.length) mapa.fitBounds(puntos, { padding: [30, 30], maxZoom: 16 });
+    else mapa.setView([41.39, 2.17], 8); // Cataluña
+    div.addEventListener("click", (ev) => {
+      const a = ev.target.closest("[data-h]");
+      if (a) { ev.preventDefault(); abrirHallazgo(a.dataset.h); }
+    });
+  }
+
+  const dlgHallazgo = $("#dlg-hallazgo");
+  async function abrirHallazgo(id) {
+    const h = (await hallazgosTodos()).find((x) => x.id === id);
+    if (!h) return;
+    dlgHallazgo.innerHTML = `
+      <div class="ficha-cab oscuro">
+        <button class="volver" data-cerrar>${ICONO.volver} Volver</button>
+        <span></span>
+      </div>
+      <div class="hallazgo-detalle">
+        <img src="${h.foto}" alt="" data-zoom-src>
+        ${h.especieId ? `<span class="sello si">${ICONO.check} En tu herbario</span>` : `<span class="sello no">No está en tu herbario</span>`}
+        <h2>${esc(h.nombre)}</h2>
+        <p class="sub"><i>${esc(h.cientifico)}</i>${h.familia ? ` · ${esc(h.familia)}` : ""}</p>
+        <ul class="datos-id">
+          <li><b>Fecha</b><span>${new Date(h.fecha).toLocaleString("es-ES", { dateStyle: "long", timeStyle: "short" })}</span></li>
+          <li><b>Lugar</b><span>${h.lat != null ? `<a href="https://www.openstreetmap.org/?mlat=${h.lat}&mlon=${h.lon}#map=18/${h.lat}/${h.lon}" target="_blank" rel="noopener">Ver en el mapa</a>` : "Sin ubicación"}</span></li>
+          <li><b>Coincidencia</b><span>${Math.round(h.score * 100)} %</span></li>
+        </ul>
+        <div class="pie-id">
+          ${h.especieId ? `<button class="btn principal" data-ficha="${esc(h.especieId)}">Ver ficha</button>` : ""}
+          <button class="btn peligro" data-borrar-h>Borrar</button>
+        </div>
+      </div>`;
+    dlgHallazgo.onclick = async (ev) => {
+      if (ev.target.closest("[data-cerrar]")) dlgHallazgo.close();
+      else if (ev.target.closest("[data-zoom-src]")) verFoto(h.foto);
+      else if (ev.target.closest("[data-ficha]")) { dlgHallazgo.close(); abrirFicha(h.especieId); }
+      else if (ev.target.closest("[data-borrar-h]")) {
+        if (!confirm("¿Borrar este hallazgo?")) return;
+        await operarHallazgo("delete", h.id);
+        dlgHallazgo.close();
+        renderHallazgos();
+      }
+    };
+    if (!dlgHallazgo.open) dlgHallazgo.showModal();
+  }
 
   /* =========================================================
    * FORMULARIO (crear / editar)
@@ -1210,7 +1823,7 @@
   });
 
   /* ---------------- Arranque ---------------- */
-  function refrescarTodo() { renderInicio(); renderChipsGrupo(); renderHerbario(); }
+  function refrescarTodo() { renderInicio(); renderProgreso(); renderChipsGrupo(); renderHerbario(); }
   (async () => {
     await cargarEstado();
     refrescarTodo();

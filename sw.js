@@ -5,17 +5,28 @@
  *  - Fotos: primero caché (se descargan todas al instalar).
  * Cambia VERSION cada vez que publiques cambios en las fotos.
  * ========================================================= */
-const VERSION = "herbario-v1";
+const VERSION = "herbario-v2";
 
-const ESPECIES = [
-  "phoenix-canariensis", "phoenix-dactylifera", "washingtonia-robusta", "washingtonia-filifera",
-  "bismarckia-nobilis", "chamaerops-humilis", "hedera-helix", "parthenocissus-tricuspidata",
-  "ficus-pumila", "bougainvillea-spectabilis", "wisteria-sinensis", "jasminum-officinale", "plumbago-auriculata",
-];
+// Fotos de cada especie (planta y hoja siempre; además, las extra que tenga)
+const FOTOS = {
+  "phoenix-canariensis": ["fruto", "tronco"],
+  "phoenix-dactylifera": ["flor", "tronco"],
+  "washingtonia-robusta": ["flor", "fruto", "tronco"],
+  "washingtonia-filifera": [],
+  "bismarckia-nobilis": [],
+  "chamaerops-humilis": ["flor", "fruto"],
+  "hedera-helix": ["flor", "fruto", "tronco"],
+  "parthenocissus-tricuspidata": ["fruto"],
+  "ficus-pumila": ["fruto"],
+  "bougainvillea-spectabilis": ["flor"],
+  "wisteria-sinensis": ["flor", "fruto"],
+  "jasminum-officinale": [],
+  "plumbago-auriculata": ["flor", "fruto"],
+};
 const PRECARGA = [
   "./", "index.html", "css/estilos.css", "js/config.js", "js/datos.js", "js/app.js", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "icons/apple-touch-icon.png",
-  ...ESPECIES.flatMap((id) => [`img/${id}-planta.jpg`, `img/${id}-hoja.jpg`]),
+  ...Object.entries(FOTOS).flatMap(([id, extra]) => ["planta", "hoja", ...extra].map((t) => `img/${id}-${t}.jpg`)),
 ];
 
 self.addEventListener("install", (ev) => {
