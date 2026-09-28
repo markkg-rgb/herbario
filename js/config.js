@@ -19,5 +19,5 @@ window.CONFIG = {
    * En la misma página, añade "markkg-rgb.github.io" como dominio
    * autorizado para que solo funcione desde tu app.
    */
-  PLANTNET_KEY: "",
+  PLANTNET_KEY: "2b10VJDauEaYiSQwAhmlLisO0",  // solo funciona desde markkg-rgb.github.io
 };

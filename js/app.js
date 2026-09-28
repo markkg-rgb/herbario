@@ -75,6 +75,19 @@
     }
   }
 
+  /* Valores sueltos compartidos con el service worker (recordatorio) */
+  async function guardarKV(clave, valor) {
+    try {
+      const db = await abrirDB();
+      await new Promise((ok, ko) => {
+        const tx = db.transaction("kv", "readwrite");
+        tx.objectStore("kv").put(valor, clave);
+        tx.oncomplete = ok;
+        tx.onerror = () => ko(tx.error);
+      });
+    } catch (e) { console.warn("No se pudo guardar", clave, e); }
+  }
+
   /* Hallazgos: plantas identificadas y guardadas con foto, fecha y lugar */
   async function hallazgosTodos() {
     try {
@@ -306,6 +319,7 @@
     const dias = ls.get("diasEstudio", []);
     const hoy = numeroDeDia();
     if (!dias.includes(hoy)) { dias.push(hoy); ls.set("diasEstudio", dias.slice(-400)); }
+    guardarKV("ultimoDiaEstudio", hoy); // el service worker lo lee para no avisar si ya has estudiado
     renderProgreso();
   }
   function racha() {
@@ -408,6 +422,152 @@
     if (acc?.dataset.accion === "ficha") { abrirFicha(especieDelDia().id); return; }
     if (acc?.dataset.accion === "girar" || ev.target.closest(".cara-frente")) girarTarjeta();
   });
+
+  /* =========================================================
+   * RECORDATORIO DIARIO
+   *  1) Notificación automática (Android con la app instalada):
+   *     el service worker se despierta de vez en cuando (Periodic
+   *     Background Sync) y, a partir de la hora elegida, avisa si
+   *     aún no has estudiado ese día.
+   *  2) Evento diario en el calendario del móvil (.ics): funciona
+   *     en todos los móviles y a la hora exacta.
+   * ========================================================= */
+  const dlgRecordatorio = $("#dlg-recordatorio");
+  const configRecordatorio = () => ls.get("recordatorio", { activo: false, hora: 19 });
+  const soportaSyncPeriodico = () => "serviceWorker" in navigator && "periodicSync" in ServiceWorkerRegistration.prototype;
+  const esIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const estaInstalada = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+
+  function pintarPuntoRecordatorio() {
+    $("#punto-recordatorio").hidden = !configRecordatorio().activo;
+  }
+
+  async function activarNotificaciones(hora) {
+    if (!("Notification" in window)) { alert("Este navegador no permite notificaciones. Usa la opción del calendario."); return false; }
+    const permiso = await Notification.requestPermission();
+    if (permiso !== "granted") { alert("No has dado permiso para las notificaciones. Puedes activarlo en los ajustes del navegador o usar la opción del calendario."); return false; }
+    const reg = await navigator.serviceWorker.ready;
+    if (soportaSyncPeriodico()) {
+      try {
+        await reg.periodicSync.register("recordatorio-diario", { minInterval: 60 * 60 * 1000 });
+      } catch (e) {
+        console.warn(e);
+        alert("Las notificaciones automáticas solo funcionan con la app instalada en la pantalla de inicio. Instálala y vuelve a activarlas, o usa la opción del calendario.");
+        return false;
+      }
+    } else {
+      alert(esIOS()
+        ? "En iPhone las notificaciones automáticas no están disponibles para esta app. Usa «Añadir al calendario»: te avisará cada día a la hora exacta."
+        : "Este navegador no permite avisos automáticos. Usa «Añadir al calendario».");
+      return false;
+    }
+    ls.set("recordatorio", { activo: true, hora });
+    await guardarKV("recordatorio", { activo: true, hora });
+    return true;
+  }
+
+  async function desactivarNotificaciones() {
+    const c = configRecordatorio();
+    ls.set("recordatorio", { ...c, activo: false });
+    await guardarKV("recordatorio", { ...c, activo: false });
+    try { (await navigator.serviceWorker.ready).periodicSync?.unregister("recordatorio-diario"); } catch {}
+  }
+
+  async function probarNotificacion() {
+    if (!("Notification" in window) || (await Notification.requestPermission()) !== "granted") {
+      alert("Primero tienes que permitir las notificaciones.");
+      return;
+    }
+    const reg = await navigator.serviceWorker.ready;
+    reg.showNotification("Herbario", {
+      body: "¡Así te llegará el aviso! Hay una especie nueva esperándote. ¿Te la sabes?",
+      icon: "icons/icon-192.png", badge: "icons/icon-192.png", tag: "recordatorio",
+    });
+  }
+
+  /** Crea un archivo de calendario con un evento diario que abre la app. */
+  function descargarCalendario(hora) {
+    const url = location.origin + location.pathname.replace(/index\.html$/, "");
+    const hoy = new Date();
+    const d = (n) => String(n).padStart(2, "0");
+    const inicio = `${hoy.getFullYear()}${d(hoy.getMonth() + 1)}${d(hoy.getDate())}T${d(hora)}0000`;
+    const fin = `${hoy.getFullYear()}${d(hoy.getMonth() + 1)}${d(hoy.getDate())}T${d(hora)}1500`;
+    const ics = [
+      "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Herbario//Recordatorio//ES", "CALSCALE:GREGORIAN",
+      "BEGIN:VEVENT",
+      `UID:herbario-recordatorio-${Date.now()}@herbario`,
+      `DTSTAMP:${hoy.toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "")}`,
+      `DTSTART:${inicio}`, `DTEND:${fin}`,
+      "RRULE:FREQ=DAILY",
+      "SUMMARY:🌿 Herbario: ¿te sabes la especie de hoy?",
+      `DESCRIPTION:Abre la app y gira la tarjeta de la especie del día.\\n${url}`,
+      `URL:${url}`,
+      "BEGIN:VALARM", "TRIGGER:PT0M", "ACTION:DISPLAY", "DESCRIPTION:Herbario: especie del día", "END:VALARM",
+      "END:VEVENT", "END:VCALENDAR",
+    ].join("\r\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar" }));
+    a.download = "recordatorio-herbario.ics";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+
+  function abrirRecordatorio() {
+    const c = configRecordatorio();
+    const horas = Array.from({ length: 16 }, (_, i) => i + 7); // 7:00 – 22:00
+    dlgRecordatorio.innerHTML = `
+      <div class="hoja-cuerpo">
+        <button class="cerrar-x" data-cerrar aria-label="Cerrar">×</button>
+        <h2>Recordatorio diario</h2>
+        <p class="nota">Te aviso para que no pierdas la racha y descubras la especie del día.</p>
+        <label class="campo-hora">¿A qué hora?
+          <select id="rec-hora">${horas.map((h) => `<option value="${h}" ${h === c.hora ? "selected" : ""}>${h}:00</option>`).join("")}</select>
+        </label>
+
+        <div class="opcion-rec">
+          <div>
+            <strong>Notificación automática</strong>
+            <span>${soportaSyncPeriodico()
+              ? (estaInstalada() ? "Te avisa a partir de esa hora si aún no has estudiado ese día. La hora exacta la decide el móvil." : "Instala la app en la pantalla de inicio para que funcione.")
+              : "No disponible en este navegador (en iPhone, usa el calendario)."}</span>
+          </div>
+          ${c.activo
+            ? `<button class="btn" data-rec="off">Desactivar</button>`
+            : `<button class="btn principal" data-rec="on" ${soportaSyncPeriodico() ? "" : "disabled"}>Activar</button>`}
+        </div>
+        ${c.activo ? `<p class="estado-rec">${ICONO.check} Activada a partir de las ${c.hora}:00</p>` : ""}
+
+        <div class="opcion-rec">
+          <div>
+            <strong>Añadir al calendario</strong>
+            <span>Crea un evento diario en el calendario de tu móvil, a la hora exacta y con enlace a la app. Funciona en Android y en iPhone.</span>
+          </div>
+          <button class="btn claro" data-rec="ics">Añadir</button>
+        </div>
+
+        <button class="enlace" data-rec="probar">Probar cómo se ve una notificación</button>
+      </div>`;
+    dlgRecordatorio.onclick = async (ev) => {
+      if (ev.target === dlgRecordatorio || ev.target.closest("[data-cerrar]")) { dlgRecordatorio.close(); return; }
+      const b = ev.target.closest("[data-rec]");
+      if (!b) return;
+      const hora = +$("#rec-hora", dlgRecordatorio).value;
+      if (b.dataset.rec === "on") { if (await activarNotificaciones(hora)) abrirRecordatorio(); }
+      else if (b.dataset.rec === "off") { await desactivarNotificaciones(); abrirRecordatorio(); }
+      else if (b.dataset.rec === "ics") descargarCalendario(hora);
+      else if (b.dataset.rec === "probar") probarNotificacion();
+      pintarPuntoRecordatorio();
+    };
+    dlgRecordatorio.onchange = async (ev) => {
+      if (ev.target.id !== "rec-hora") return;
+      const nuevo = { ...configRecordatorio(), hora: +ev.target.value };
+      ls.set("recordatorio", nuevo);
+      await guardarKV("recordatorio", nuevo);
+      if (nuevo.activo) abrirRecordatorio();
+    };
+    if (!dlgRecordatorio.open) dlgRecordatorio.showModal();
+  }
+  $("#btn-recordatorio").addEventListener("click", abrirRecordatorio);
 
   /* =========================================================
    * HERBARIO
@@ -1828,6 +1988,8 @@
     await cargarEstado();
     refrescarTodo();
     irA(ls.get("vista", "inicio"));
+    pintarPuntoRecordatorio();
+    guardarKV("ultimoDiaEstudio", ls.get("diasEstudio", []).slice(-1)[0] ?? null);
     $("#btn-clave").hidden = !remoto;
     $("#btn-sync").hidden = !remoto;
     pintarEstadoSync();

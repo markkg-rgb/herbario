@@ -26,7 +26,10 @@
       <nav class="barra">
         <span class="fecha" id="hoy"></span>
         <svg class="logo" viewBox="0 0 48 32" aria-hidden="true"><use href="#i-logo"/></svg>
-        <span class="barra-hueco"></span>
+        <button class="icono campana" id="btn-recordatorio" aria-label="Recordatorio diario">
+          <svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
+          <span class="punto" id="punto-recordatorio" hidden></span>
+        </button>
       </nav>
 
       <header class="titulo">
@@ -223,6 +226,9 @@
 
   <!-- Detalle de un hallazgo -->
   <dialog id="dlg-hallazgo" class="pantalla claro"></dialog>
+
+  <!-- Recordatorio diario -->
+  <dialog id="dlg-recordatorio" class="hoja-dialogo"></dialog>
 
   <!-- Zona que solo se ve al imprimir / guardar en PDF -->
   <div id="impresion"></div>
