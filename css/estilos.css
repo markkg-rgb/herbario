@@ -599,9 +599,14 @@ button, .btn, .boton, .planta, .hallazgo, .juego-tarjeta { -webkit-tap-highlight
 @keyframes onda { to { transform: scale(1); opacity: 0; } }
 
 /* Fotos: esqueleto brillante mientras cargan y aparición suave */
-.foto { background: linear-gradient(100deg, var(--verde-osc) 30%, #2c8a53 50%, var(--verde-osc) 70%); background-size: 300% 100%; animation: brillo 1.6s linear infinite; }
-.foto:has(img.cargada), .foto.sin-foto { animation: none; background: var(--verde-osc); }
-@keyframes brillo { from { background-position: 100% 0; } to { background-position: -200% 0; } }
+/* (el brillo se mueve con transform: lo calcula la tarjeta gráfica, sin repintar) */
+.foto::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.13) 50%, transparent 70%);
+  transform: translateX(-100%); animation: brillo 1.5s linear infinite;
+}
+.foto:has(img.cargada)::before, .foto.sin-foto::before { display: none; }
+@keyframes brillo { to { transform: translateX(100%); } }
 .foto img, .hallazgo img, .cargando .foto-mini { opacity: 0; transform: scale(1.04); transition: opacity .5s ease, transform .7s ease; }
 .foto img.cargada, .hallazgo img.cargada, .cargando .foto-mini.cargada { opacity: 1; transform: none; }
 .planta:hover .foto img.cargada { transform: scale(1.06); }
