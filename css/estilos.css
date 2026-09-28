@@ -149,9 +149,16 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--verde-
   width: min(520px, calc(100% - 28px)); display: grid; grid-template-columns: repeat(4, 1fr);
   background: var(--blanco); border-radius: var(--r-lg); box-shadow: var(--sombra); padding: 6px;
 }
-.navegacion button { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 13px 6px; border-radius: 18px; font-weight: 600; font-size: .88rem; }
-.navegacion svg { width: 20px; height: 20px; flex: none; }
-.navegacion button.activo { background: var(--verde); color: var(--blanco); }
+.navegacion button { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 13px 6px; border-radius: 18px; font-weight: 600; font-size: .88rem; transition: color .3s; overflow: hidden; }
+.navegacion svg { width: 20px; height: 20px; flex: none; transition: transform .35s cubic-bezier(.3,1.6,.5,1); }
+.navegacion button.activo { color: var(--blanco); }
+.navegacion button.activo svg { transform: translateY(-1px) scale(1.12); }
+/* Pastilla verde que se desliza bajo el botón activo */
+.navegacion .indicador {
+  position: absolute; z-index: 0; top: 6px; bottom: 6px; left: 6px; width: calc((100% - 12px) / 4);
+  border-radius: 18px; background: var(--verde); box-shadow: 0 6px 16px rgba(47,154,91,.35);
+  transform: translateX(calc(var(--pos, 0) * 100%)); transition: transform .45s cubic-bezier(.3,1.25,.4,1);
+}
 
 /* ---------- Botones genéricos ---------- */
 .btn { padding: 11px 20px; border-radius: 99px; background: var(--blanco); color: var(--texto); font-weight: 600; font-size: .88rem; }
@@ -222,10 +229,30 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--verde-
 .fuente { font-size: .8rem; color: var(--suave); }
 .acciones-ficha .botones { display: flex; gap: 8px; flex-wrap: wrap; }
 
-/* ---------- Visor ---------- */
-.visor { padding: 0; border: 0; background: transparent; max-width: 96vw; max-height: 96vh; }
-.visor::backdrop { background: rgba(0,0,0,.85); }
-.visor img { max-width: 96vw; max-height: 92vh; display: block; border-radius: var(--r-md); cursor: zoom-out; }
+/* ---------- Visor de fotos ---------- */
+.visor {
+  padding: 0; border: 0; background: transparent; width: 100vw; height: 100dvh; max-width: 100vw; max-height: 100dvh;
+  display: grid; place-items: center; overflow: hidden;
+}
+.visor:not([open]) { display: none; }
+.visor::backdrop { background: rgba(8, 20, 12, .92); backdrop-filter: blur(6px); }
+.visor-img { max-width: 94vw; max-height: 82dvh; border-radius: var(--r-md); box-shadow: 0 20px 60px rgba(0,0,0,.5); user-select: none; -webkit-user-drag: none; }
+.visor-img.desde-der { animation: entraDer .35s cubic-bezier(.2,.8,.3,1); }
+.visor-img.desde-izq { animation: entraIzq .35s cubic-bezier(.2,.8,.3,1); }
+@keyframes entraDer { from { opacity: 0; transform: translateX(60px) scale(.96); } }
+@keyframes entraIzq { from { opacity: 0; transform: translateX(-60px) scale(.96); } }
+.visor-flecha, .visor-cerrar {
+  position: fixed; width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,.14); color: #fff;
+  display: grid; place-items: center; backdrop-filter: blur(4px); transition: background .2s, transform .2s;
+}
+.visor-flecha:hover, .visor-cerrar:hover { background: rgba(255,255,255,.26); }
+.visor-flecha:active, .visor-cerrar:active { transform: scale(.9); }
+.visor-flecha svg { width: 24px; height: 24px; }
+.visor-flecha.izq { left: 12px; top: 50%; margin-top: -24px; }
+.visor-flecha.der { right: 12px; top: 50%; margin-top: -24px; }
+.visor-flecha.der svg { transform: rotate(180deg); }
+.visor-cerrar { top: calc(14px + env(safe-area-inset-top)); right: 14px; font-size: 1.6rem; line-height: 1; }
+.visor-pie { position: fixed; bottom: calc(18px + env(safe-area-inset-bottom)); left: 0; right: 0; text-align: center; color: rgba(255,255,255,.85); font-size: .85rem; font-weight: 500; margin: 0; }
 
 /* ---------- Jugar ---------- */
 .juegos { display: grid; gap: 16px; max-width: 520px; margin: 0 auto; }
@@ -549,6 +576,136 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--verde-
 .estado-rec { margin: -6px 0 0; display: flex; align-items: center; gap: 6px; color: var(--verde-osc); font-weight: 600; font-size: .85rem; }
 .estado-rec svg { width: 18px; height: 18px; stroke-width: 3; }
 .hoja-cuerpo > .enlace { align-self: center; }
+
+/* =========================================================
+ * ANIMACIONES Y MICROINTERACCIONES
+ * ========================================================= */
+
+/* Botones: se hunden al pulsar y efecto de onda */
+button, .btn, .boton, .planta, .hallazgo, .juego-tarjeta { -webkit-tap-highlight-color: transparent; }
+.btn, .chips button, .pastilla, .juego-tarjeta, .boton-giro, .respuestas button, .alternativa, .ordena-item, .planta, .hallazgo, .icono, .voz, .camara-botones .btn {
+  position: relative; overflow: hidden;
+  transition: transform .18s cubic-bezier(.3,1.4,.5,1), box-shadow .2s, background-color .2s, color .2s, border-color .2s;
+}
+.btn:active, .chips button:active, .pastilla:active, .icono:active, .voz:active, .alternativa:active, .respuestas button:active:not(:disabled) { transform: scale(.95); }
+.juego-tarjeta:active, .planta:active, .hallazgo:active, .ordena-item:active { transform: scale(.97); }
+.boton-giro:active { transform: scale(.88); }
+.btn:hover:not(:disabled) { box-shadow: 0 6px 16px rgba(20,70,40,.14); }
+.juego-tarjeta:hover { transform: translateY(-3px); box-shadow: 0 16px 34px rgba(20,70,40,.16); }
+.onda {
+  position: absolute; border-radius: 50%; pointer-events: none; background: currentColor; opacity: .18;
+  transform: scale(0); animation: onda .6s ease-out forwards;
+}
+@keyframes onda { to { transform: scale(1); opacity: 0; } }
+
+/* Fotos: esqueleto brillante mientras cargan y aparición suave */
+.foto { background: linear-gradient(100deg, var(--verde-osc) 30%, #2c8a53 50%, var(--verde-osc) 70%); background-size: 300% 100%; animation: brillo 1.6s linear infinite; }
+.foto:has(img.cargada), .foto.sin-foto { animation: none; background: var(--verde-osc); }
+@keyframes brillo { from { background-position: 100% 0; } to { background-position: -200% 0; } }
+.foto img, .hallazgo img, .cargando .foto-mini { opacity: 0; transform: scale(1.04); transition: opacity .5s ease, transform .7s ease; }
+.foto img.cargada, .hallazgo img.cargada, .cargando .foto-mini.cargada { opacity: 1; transform: none; }
+.planta:hover .foto img.cargada { transform: scale(1.06); }
+.planta .foto img { transition: opacity .5s ease, transform .5s ease; }
+
+/* Entrada de cada pantalla */
+.vista.entrando { animation: entraVista .45s cubic-bezier(.2,.8,.3,1); }
+@keyframes entraVista { from { opacity: 0; transform: translateY(14px); } }
+
+/* Tarjetas que aparecen en cascada */
+.planta, .juego-tarjeta, .hallazgo, .acordeon, .respuestas button, .ordena-item, .opcion-rec {
+  animation: subeCascada .5s cubic-bezier(.2,.8,.3,1) backwards;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+.juego-tarjeta:nth-child(2), .respuestas button:nth-child(2), .ordena-item:nth-child(2), .acordeon:nth-of-type(2) { --i: 1; }
+.juego-tarjeta:nth-child(3), .respuestas button:nth-child(3), .ordena-item:nth-child(3), .acordeon:nth-of-type(3) { --i: 2; }
+.juego-tarjeta:nth-child(4), .respuestas button:nth-child(4), .ordena-item:nth-child(4), .acordeon:nth-of-type(4) { --i: 3; }
+.acordeon:nth-of-type(n+5) { --i: 4; }
+@keyframes subeCascada { from { opacity: 0; transform: translateY(18px) scale(.98); } }
+
+/* Diálogos: suben desde abajo */
+dialog[open].pantalla, dialog[open].hoja-dialogo { animation: subeDialogo .45s cubic-bezier(.2,.9,.3,1); }
+dialog[open]::backdrop { animation: fundido .3s ease; }
+@keyframes subeDialogo { from { opacity: .4; transform: translateY(60px); } }
+@keyframes fundido { from { opacity: 0; } }
+
+/* Desplegables: contenido que se abre suavemente */
+.acordeon[open] .acordeon-cuerpo { animation: abreAcordeon .35s ease; }
+@keyframes abreAcordeon { from { opacity: 0; transform: translateY(-6px); } }
+.acordeon summary { transition: background-color .2s; }
+.acordeon summary:hover { background: #f7fbf8; }
+
+/* Tarjeta del día: botón que late para invitar a tocar */
+.giro:not(.girada) .boton-giro { animation: latidoBoton 2.4s ease-in-out infinite; }
+@keyframes latidoBoton { 0%, 70%, 100% { box-shadow: 0 0 0 0 rgba(127,211,156,.7); } 35% { box-shadow: 0 0 0 14px rgba(127,211,156,0); } }
+.giro { animation: entraVista .6s cubic-bezier(.2,.8,.3,1); }
+.cara-frente:hover .foto img.cargada { transform: scale(1.03); }
+
+/* Barras de progreso que se llenan */
+.progreso div, .confianza-barra div { transform-origin: left; animation: llenar .9s cubic-bezier(.2,.8,.3,1) backwards; }
+@keyframes llenar { from { transform: scaleX(0); } }
+
+/* Juegos: acierto que rebota, fallo que tiembla, pareja encontrada */
+.respuestas button.bien, .vf-botones .btn.bien, .ordena-item.bien { animation: rebote .5s cubic-bezier(.3,1.6,.5,1); }
+.respuestas button.mal, .vf-botones .btn.mal, .ordena-item.mal { animation: temblor .45s ease; }
+@keyframes rebote { 40% { transform: scale(1.06); } }
+@keyframes temblor { 20%, 60% { transform: translateX(-7px); } 40%, 80% { transform: translateX(7px); } }
+.carta.hecha .carta-interior { animation: pareja .5s cubic-bezier(.3,1.6,.5,1); }
+@keyframes pareja { 50% { transform: rotateY(180deg) scale(1.08); } }
+.carta:hover:not(.vuelta):not(.hecha) .carta-interior { transform: translateY(-3px); }
+.explicacion { animation: subeCascada .4s cubic-bezier(.2,.8,.3,1); }
+.resultado { animation: aparecePremio .6s cubic-bezier(.3,1.5,.5,1); }
+@keyframes aparecePremio { from { opacity: 0; transform: scale(.85); } }
+.ordena-num { animation: rebote .35s cubic-bezier(.3,1.6,.5,1); }
+
+/* Sellos y resultados de Identifica */
+.sello { animation: aparecePremio .5s cubic-bezier(.3,1.5,.5,1) .15s backwards; }
+.resultado-id { animation: subeCascada .5s cubic-bezier(.2,.8,.3,1); }
+
+/* Carrusel de fotos de la ficha */
+.hero-fotos { min-width: 0; }
+.carrusel-fotos {
+  display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; border-radius: 26px;
+  scrollbar-width: none; overscroll-behavior-x: contain;
+}
+.carrusel-fotos::-webkit-scrollbar { display: none; }
+.carrusel-fotos .slide { flex: 0 0 100%; scroll-snap-align: center; margin: 0; position: relative; }
+.carrusel-fotos .foto { aspect-ratio: 4 / 5; border-radius: 0; cursor: zoom-in; }
+.carrusel-fotos figcaption {
+  position: absolute; left: 10px; bottom: 10px; background: rgba(0,0,0,.45); color: #fff; backdrop-filter: blur(4px);
+  font-size: .72rem; font-weight: 600; padding: 4px 10px; border-radius: 99px;
+}
+.puntos { display: flex; justify-content: center; gap: 6px; margin-top: 10px; }
+.puntos button { width: 7px; height: 7px; border-radius: 99px; background: rgba(255,255,255,.4); transition: width .3s, background .3s; padding: 0; }
+.puntos button.activo { width: 22px; background: var(--blanco); }
+.credito-actual { min-height: 1.2em; }
+.credito-actual .credito { animation: fundido .4s ease; }
+
+/* Mensajes breves */
+.toast {
+  position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom)); z-index: 100; transform: translateX(-50%);
+  background: var(--texto); color: var(--blanco); padding: 12px 20px; border-radius: 99px; font-size: .88rem; font-weight: 500;
+  box-shadow: 0 10px 30px rgba(0,0,0,.25); animation: entraToast .4s cubic-bezier(.3,1.4,.5,1); white-space: nowrap; max-width: 92vw;
+}
+.toast.saliendo { animation: saleToast .4s ease forwards; }
+@keyframes entraToast { from { opacity: 0; transform: translate(-50%, 20px) scale(.9); } }
+@keyframes saleToast { to { opacity: 0; transform: translate(-50%, 20px); } }
+
+/* Confeti */
+.confeti { position: fixed; inset: 0; pointer-events: none; z-index: 200; overflow: hidden; }
+.confeti i {
+  position: absolute; top: -12px; width: 9px; height: 14px; border-radius: 2px;
+  animation-name: caeConfeti; animation-timing-function: cubic-bezier(.3,.6,.6,1); animation-fill-mode: forwards;
+}
+@keyframes caeConfeti { to { transform: translate(var(--deriva), 105vh) rotate(var(--giro)); opacity: .9; } }
+
+/* Campana: punto de aviso pendiente */
+.campana .punto.aviso { background: #e0913a; animation: latidoBoton 2s infinite; }
+.opcion-rec.alerta { border: 2px solid #f0c77f; }
+
+/* Sin animaciones si el móvil lo pide */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
 
 /* ---------- Formulario ---------- */
 #form-especie { padding: 24px 28px 40px; display: flex; flex-direction: column; gap: 14px; }

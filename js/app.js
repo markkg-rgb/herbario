@@ -30,6 +30,54 @@
     check: `<svg viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg>`,
   };
 
+  /* ---------------- Detalles de interfaz: animaciones y avisos ---------------- */
+  const sinMovimiento = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Las fotos aparecen suavemente cuando terminan de cargar
+  document.addEventListener("load", (ev) => {
+    if (ev.target.tagName === "IMG") ev.target.classList.add("cargada");
+  }, true);
+
+  // Efecto de onda al tocar botones
+  const SELECTOR_ONDA = ".btn, .navegacion button, .chips button, .pastilla, .juego-tarjeta, .boton-giro, .respuestas button, .alternativa, .vf-botones .btn, .ordena-item, .planta, .hallazgo, .opcion-rec .btn, .camara-botones .btn";
+  document.addEventListener("pointerdown", (ev) => {
+    if (sinMovimiento) return;
+    const el = ev.target.closest(SELECTOR_ONDA);
+    if (!el || el.disabled) return;
+    const r = el.getBoundingClientRect();
+    const onda = document.createElement("span");
+    const lado = Math.max(r.width, r.height) * 2;
+    onda.className = "onda";
+    onda.style.cssText = `width:${lado}px;height:${lado}px;left:${ev.clientX - r.left - lado / 2}px;top:${ev.clientY - r.top - lado / 2}px`;
+    el.appendChild(onda);
+    onda.addEventListener("animationend", () => onda.remove());
+  });
+
+  // Mensajes breves en la parte inferior
+  function avisoToast(texto) {
+    const t = document.createElement("div");
+    t.className = "toast";
+    t.textContent = texto;
+    document.body.appendChild(t);
+    setTimeout(() => t.classList.add("saliendo"), 2600);
+    setTimeout(() => t.remove(), 3100);
+  }
+
+  // Confeti para celebrar récords
+  function confeti() {
+    if (sinMovimiento) return;
+    const colores = ["#2f9a5b", "#7fd39c", "#e7a2c6", "#e6a54a", "#ffffff", "#237a47"];
+    const capa = document.createElement("div");
+    capa.className = "confeti";
+    for (let i = 0; i < 70; i++) {
+      const p = document.createElement("i");
+      p.style.cssText = `left:${Math.random() * 100}%;background:${colores[i % colores.length]};animation-delay:${Math.random() * 0.4}s;animation-duration:${1.6 + Math.random() * 1.4}s;--giro:${Math.random() * 720 - 360}deg;--deriva:${Math.random() * 120 - 60}px`;
+      capa.appendChild(p);
+    }
+    document.body.appendChild(capa);
+    setTimeout(() => capa.remove(), 3500);
+  }
+
   /* ---------------- Almacenamiento (IndexedDB) ----------------
    * Un único registro "estado": { especies: {id: especie}, borradas: [id] }
    */
@@ -284,8 +332,15 @@
 
   /* ---------------- Navegación entre vistas ---------------- */
   function irA(vista) {
-    $$(".vista").forEach((v) => (v.hidden = v.id !== "vista-" + vista));
-    $$("#navegacion button").forEach((b) => b.classList.toggle("activo", b.dataset.vista === vista));
+    $$(".vista").forEach((v) => {
+      const esta = v.id === "vista-" + vista;
+      v.hidden = !esta;
+      if (esta) { v.classList.remove("entrando"); void v.offsetWidth; v.classList.add("entrando"); }
+    });
+    const botones = $$("#navegacion button");
+    botones.forEach((b) => b.classList.toggle("activo", b.dataset.vista === vista));
+    const i = botones.findIndex((b) => b.dataset.vista === vista);
+    $("#navegacion").style.setProperty("--pos", Math.max(0, i));
     if (vista === "jugar") menuJuegos();
     if (vista === "identifica") renderHallazgos();
     window.scrollTo(0, 0);
@@ -433,45 +488,56 @@
    *     en todos los móviles y a la hora exacta.
    * ========================================================= */
   const dlgRecordatorio = $("#dlg-recordatorio");
-  const configRecordatorio = () => ls.get("recordatorio", { activo: false, hora: 19 });
+  const configRecordatorio = () => ({ hora: 19, ...ls.get("recordatorio", {}), activo: true });
   const soportaSyncPeriodico = () => "serviceWorker" in navigator && "periodicSync" in ServiceWorkerRegistration.prototype;
   const esIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
   const estaInstalada = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
 
+  // Estado real de los avisos en este dispositivo
+  function estadoAvisos() {
+    if (!("Notification" in window) || !("serviceWorker" in navigator)) return "no-soportado";
+    if (Notification.permission === "denied") return "bloqueado";
+    if (Notification.permission === "default") return "pendiente";
+    if (!soportaSyncPeriodico()) return "sin-sync";
+    return "activo";
+  }
+
   function pintarPuntoRecordatorio() {
-    $("#punto-recordatorio").hidden = !configRecordatorio().activo;
+    const e = estadoAvisos();
+    const p = $("#punto-recordatorio");
+    p.hidden = false;
+    p.classList.toggle("aviso", e === "pendiente" || e === "bloqueado");
   }
 
-  async function activarNotificaciones(hora) {
-    if (!("Notification" in window)) { alert("Este navegador no permite notificaciones. Usa la opción del calendario."); return false; }
-    const permiso = await Notification.requestPermission();
-    if (permiso !== "granted") { alert("No has dado permiso para las notificaciones. Puedes activarlo en los ajustes del navegador o usar la opción del calendario."); return false; }
-    const reg = await navigator.serviceWorker.ready;
-    if (soportaSyncPeriodico()) {
-      try {
-        await reg.periodicSync.register("recordatorio-diario", { minInterval: 60 * 60 * 1000 });
-      } catch (e) {
-        console.warn(e);
-        alert("Las notificaciones automáticas solo funcionan con la app instalada en la pantalla de inicio. Instálala y vuelve a activarlas, o usa la opción del calendario.");
-        return false;
-      }
-    } else {
-      alert(esIOS()
-        ? "En iPhone las notificaciones automáticas no están disponibles para esta app. Usa «Añadir al calendario»: te avisará cada día a la hora exacta."
-        : "Este navegador no permite avisos automáticos. Usa «Añadir al calendario».");
-      return false;
+  /* Los avisos se activan solos: se registran siempre que haya permiso,
+   * y el permiso se pide automáticamente en el primer toque del usuario
+   * (los navegadores no dejan pedirlo sin un toque). */
+  async function asegurarAvisos() {
+    const cfg = configRecordatorio();
+    await guardarKV("recordatorio", cfg);
+    if (estadoAvisos() !== "activo") return;
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const tags = await reg.periodicSync.getTags();
+      if (!tags.includes("recordatorio-diario")) await reg.periodicSync.register("recordatorio-diario", { minInterval: 60 * 60 * 1000 });
+    } catch (e) {
+      // Chrome solo lo permite con la app instalada; se reintenta en cada arranque
+      console.warn("Aviso diario pendiente de instalar la app", e);
     }
-    ls.set("recordatorio", { activo: true, hora });
-    await guardarKV("recordatorio", { activo: true, hora });
-    return true;
   }
 
-  async function desactivarNotificaciones() {
-    const c = configRecordatorio();
-    ls.set("recordatorio", { ...c, activo: false });
-    await guardarKV("recordatorio", { ...c, activo: false });
-    try { (await navigator.serviceWorker.ready).periodicSync?.unregister("recordatorio-diario"); } catch {}
+  async function pedirPermisoAvisos() {
+    if (!("Notification" in window) || Notification.permission !== "default") return;
+    try { await Notification.requestPermission(); } catch {}
+    pintarPuntoRecordatorio();
+    await asegurarAvisos();
+    if (Notification.permission === "granted") avisoToast("Recordatorio diario activado 🌿");
   }
+  // Primer toque en la app → pedir permiso (se repite en cada sesión mientras no se conceda)
+  document.addEventListener("pointerup", function primerToque() {
+    document.removeEventListener("pointerup", primerToque, true);
+    setTimeout(pedirPermisoAvisos, 400);
+  }, true);
 
   async function probarNotificacion() {
     if (!("Notification" in window) || (await Notification.requestPermission()) !== "granted") {
@@ -520,22 +586,17 @@
         <button class="cerrar-x" data-cerrar aria-label="Cerrar">×</button>
         <h2>Recordatorio diario</h2>
         <p class="nota">Te aviso para que no pierdas la racha y descubras la especie del día.</p>
-        <label class="campo-hora">¿A qué hora?
+        <label class="campo-hora">Avisarme a partir de las
           <select id="rec-hora">${horas.map((h) => `<option value="${h}" ${h === c.hora ? "selected" : ""}>${h}:00</option>`).join("")}</select>
         </label>
 
-        <div class="opcion-rec">
-          <div>
-            <strong>Notificación automática</strong>
-            <span>${soportaSyncPeriodico()
-              ? (estaInstalada() ? "Te avisa a partir de esa hora si aún no has estudiado ese día. La hora exacta la decide el móvil." : "Instala la app en la pantalla de inicio para que funcione.")
-              : "No disponible en este navegador (en iPhone, usa el calendario)."}</span>
-          </div>
-          ${c.activo
-            ? `<button class="btn" data-rec="off">Desactivar</button>`
-            : `<button class="btn principal" data-rec="on" ${soportaSyncPeriodico() ? "" : "disabled"}>Activar</button>`}
-        </div>
-        ${c.activo ? `<p class="estado-rec">${ICONO.check} Activada a partir de las ${c.hora}:00</p>` : ""}
+        ${{
+          activo: `<p class="estado-rec">${ICONO.check} Notificaciones activadas${estaInstalada() ? "" : " · se enviarán cuando tengas la app instalada"}</p>`,
+          pendiente: `<div class="opcion-rec"><div><strong>Falta tu permiso</strong><span>El móvil necesita que aceptes las notificaciones una vez.</span></div><button class="btn principal" data-rec="permiso">Permitir</button></div>`,
+          bloqueado: `<div class="opcion-rec alerta"><div><strong>Notificaciones bloqueadas</strong><span>Actívalas en los ajustes del navegador: toca el candado junto a la dirección → Notificaciones → Permitir.</span></div></div>`,
+          "sin-sync": `<div class="opcion-rec"><div><strong>${esIOS() ? "iPhone" : "Este navegador"}</strong><span>No permite avisos automáticos de apps web. Usa el calendario de abajo: te avisará cada día a la hora exacta.</span></div></div>`,
+          "no-soportado": `<div class="opcion-rec"><div><strong>Sin notificaciones</strong><span>Este navegador no las permite. Usa el calendario de abajo.</span></div></div>`,
+        }[estadoAvisos()]}
 
         <div class="opcion-rec">
           <div>
@@ -552,8 +613,7 @@
       const b = ev.target.closest("[data-rec]");
       if (!b) return;
       const hora = +$("#rec-hora", dlgRecordatorio).value;
-      if (b.dataset.rec === "on") { if (await activarNotificaciones(hora)) abrirRecordatorio(); }
-      else if (b.dataset.rec === "off") { await desactivarNotificaciones(); abrirRecordatorio(); }
+      if (b.dataset.rec === "permiso") { await pedirPermisoAvisos(); abrirRecordatorio(); }
       else if (b.dataset.rec === "ics") descargarCalendario(hora);
       else if (b.dataset.rec === "probar") probarNotificacion();
       pintarPuntoRecordatorio();
@@ -563,7 +623,7 @@
       const nuevo = { ...configRecordatorio(), hora: +ev.target.value };
       ls.set("recordatorio", nuevo);
       await guardarKV("recordatorio", nuevo);
-      if (nuevo.activo) abrirRecordatorio();
+      avisoToast(`Te avisaré a partir de las ${nuevo.hora}:00`);
     };
     if (!dlgRecordatorio.open) dlgRecordatorio.showModal();
   }
@@ -640,8 +700,8 @@
       <section class="grupo-lista">
         <h2>${esc(g)} <small>${es.length} especie${es.length === 1 ? "" : "s"}</small></h2>
         <div class="rejilla-plantas">
-          ${es.map((e) => `
-            <article class="planta" data-id="${esc(e.id)}" tabindex="0">
+          ${es.map((e, n) => `
+            <article class="planta" data-id="${esc(e.id)}" tabindex="0" style="--i:${n}">
               ${estaSabida(e.id) ? `<span class="marca-sabida" title="Te la sabes">${ICONO.check}</span>` : ""}
               ${htmlFoto(e, "planta", e.nombres.lat)}
               <h3>${esc(e.nombres.ca)}</h3>
@@ -775,9 +835,16 @@
         </span>
       </div>
       <section class="hero">
-        <div>
-          <div data-zoom>${htmlFoto(e, "planta", "Planta entera de " + e.nombres.lat)}</div>
-          ${htmlCredito(e, "planta")}
+        <div class="hero-fotos">
+          <div class="carrusel-fotos" data-zoom>
+            ${TIPOS_FOTO.filter(([t]) => e.fotos?.[t]).map(([t, n]) => `
+              <figure class="slide" data-tipo="${t}">
+                ${htmlFoto(e, t, n + " de " + e.nombres.lat)}
+                <figcaption>${n}</figcaption>
+              </figure>`).join("")}
+          </div>
+          <div class="puntos">${TIPOS_FOTO.filter(([t]) => e.fotos?.[t]).map(([t], i) => `<button data-punto="${i}" class="${i ? "" : "activo"}" aria-label="Foto ${i + 1}"></button>`).join("")}</div>
+          <div class="credito-actual">${htmlCredito(e, "planta")}</div>
         </div>
         <div>
           ${sabida ? `<span class="sello si mini">${ICONO.check} Te la sabes</span>` : ""}
@@ -820,6 +887,21 @@
         </div>
       </section>`;
 
+    // Carrusel de fotos: puntos y crédito de la foto visible
+    const carrusel = $(".carrusel-fotos", dlgFicha);
+    const slides = $$(".slide", carrusel);
+    const puntos = $$("[data-punto]", dlgFicha);
+    let actual = 0;
+    const marcarSlide = (i) => {
+      if (i === actual || !slides[i]) return;
+      actual = i;
+      puntos.forEach((p, n) => p.classList.toggle("activo", n === i));
+      $(".credito-actual", dlgFicha).innerHTML = htmlCredito(e, slides[i].dataset.tipo);
+    };
+    carrusel.addEventListener("scroll", () => marcarSlide(Math.round(carrusel.scrollLeft / carrusel.clientWidth)), { passive: true });
+    carrusel.marcarSlide = marcarSlide;
+    if (puntos.length < 2) $(".puntos", dlgFicha).hidden = true;
+
     // Recordar qué apartados se despliegan
     $$("details.acordeon", dlgFicha).forEach((d) => d.addEventListener("toggle", () => {
       ls.set("seccionesAbiertas", $$("details.acordeon[open]", dlgFicha).map((x) => x.dataset.sec));
@@ -829,7 +911,14 @@
       const t = ev.target;
       if (t.closest("[data-cerrar]")) dlgFicha.close();
       else if (t.closest("[data-voz]")) { const b = t.closest("[data-voz]"); hablar(b.dataset.voz, b.dataset.idioma); }
-      else if (t.closest("[data-zoom] img")) verFoto(t.closest("img").src);
+      else if (t.closest("[data-punto]")) {
+        const c = $(".carrusel-fotos", dlgFicha);
+        const i = +t.closest("[data-punto]").dataset.punto;
+        c.marcarSlide(i);
+        c.scrollTo({ left: c.clientWidth * i, behavior: sinMovimiento ? "auto" : "smooth" });
+      }
+      else if (t.closest(".carrusel-fotos img")) verFoto(t.closest("img").src, $(".carrusel-fotos", dlgFicha));
+      else if (t.closest("[data-zoom] img")) verFoto(t.closest("img").src, t.closest("[data-zoom]"));
       else if (t.closest("[data-todas]")) {
         const abrir = t.closest("[data-todas]").dataset.todas === "1";
         $$("details.acordeon", dlgFicha).forEach((d) => (d.open = abrir));
@@ -906,7 +995,7 @@
       </div>`;
     dlgComparar.onclick = (ev) => {
       if (ev.target.closest("[data-cerrar]")) dlgComparar.close();
-      else if (ev.target.closest("[data-zoom] img")) verFoto(ev.target.closest("img").src);
+      else if (ev.target.closest("[data-zoom] img")) verFoto(ev.target.closest("img").src, ev.target.closest("[data-zoom]"));
     };
     dlgComparar.onchange = (ev) => {
       const s = ev.target.closest("select[data-lado]");
@@ -943,13 +1032,65 @@
   }
   window.addEventListener("afterprint", () => { $("#impresion").innerHTML = ""; });
 
+  /* ---------------- Visor de fotos con paso de imágenes ----------------
+   * verFoto(src, contexto): si el contexto tiene varias fotos, se puede
+   * pasar de una a otra deslizando, con las flechas o con el teclado.
+   */
   const dlgFoto = $("#dlg-foto");
-  function verFoto(src) {
-    if (!src) return;
-    $("img", dlgFoto).src = src;
-    dlgFoto.showModal();
+  let visor = { lista: [], i: 0 };
+
+  function pintarVisor(direccion = 0) {
+    const { lista, i } = visor;
+    const img = $(".visor-img", dlgFoto);
+    img.classList.remove("desde-izq", "desde-der", "cargada");
+    void img.offsetWidth;
+    if (direccion) img.classList.add(direccion > 0 ? "desde-der" : "desde-izq");
+    img.src = lista[i].src;
+    $(".visor-pie", dlgFoto).textContent = lista.length > 1 ? `${lista[i].titulo ? lista[i].titulo + " · " : ""}${i + 1} / ${lista.length}` : lista[i].titulo || "";
+    $$(".visor-flecha", dlgFoto).forEach((b) => (b.hidden = lista.length < 2));
   }
-  dlgFoto.addEventListener("click", () => dlgFoto.close());
+  function moverVisor(d) {
+    if (visor.lista.length < 2) return;
+    visor.i = (visor.i + d + visor.lista.length) % visor.lista.length;
+    pintarVisor(d);
+  }
+
+  function verFoto(src, contexto) {
+    if (!src) return;
+    const cont = contexto?.closest?.(".galeria, .comp-cols") || contexto;
+    const imgs = cont ? $$("img", cont).filter((x) => x.getAttribute("src")) : [];
+    const titulo = (x) => x.closest(".slide, .galeria figure, .fotos-id > div, .comp-col")?.querySelector("figcaption, h3")?.textContent.trim() || "";
+    const lista = imgs.length ? imgs.map((x) => ({ src: x.src, titulo: titulo(x) })) : [{ src, titulo: "" }];
+    visor = { lista, i: Math.max(0, lista.findIndex((x) => x.src === src)) };
+    if (!$(".visor-img", dlgFoto)) {
+      dlgFoto.innerHTML = `
+        <img class="visor-img" alt="">
+        <button class="visor-flecha izq" data-mover="-1" aria-label="Anterior">${ICONO.volver}</button>
+        <button class="visor-flecha der" data-mover="1" aria-label="Siguiente">${ICONO.volver}</button>
+        <button class="visor-cerrar" data-cerrar-visor aria-label="Cerrar">×</button>
+        <p class="visor-pie"></p>`;
+    }
+    pintarVisor();
+    if (!dlgFoto.open) dlgFoto.showModal();
+  }
+  dlgFoto.addEventListener("click", (ev) => {
+    const m = ev.target.closest("[data-mover]");
+    if (m) { moverVisor(+m.dataset.mover); return; }
+    if (ev.target.closest("[data-cerrar-visor]") || ev.target === dlgFoto || ev.target.classList.contains("visor-img") && visor.lista.length < 2) dlgFoto.close();
+  });
+  dlgFoto.addEventListener("keydown", (ev) => {
+    if (ev.key === "ArrowRight") moverVisor(1);
+    if (ev.key === "ArrowLeft") moverVisor(-1);
+  });
+  // Deslizar con el dedo
+  let toqueX = null;
+  dlgFoto.addEventListener("touchstart", (ev) => { toqueX = ev.touches[0].clientX; }, { passive: true });
+  dlgFoto.addEventListener("touchend", (ev) => {
+    if (toqueX == null) return;
+    const dx = ev.changedTouches[0].clientX - toqueX;
+    toqueX = null;
+    if (Math.abs(dx) > 50) moverVisor(dx < 0 ? 1 : -1);
+  });
 
   /* =========================================================
    * JUGAR — Memory y Quiz
@@ -1110,6 +1251,7 @@
     const rec = ls.get("recordMemory", null);
     const nuevo = !rec || movimientos < rec.movimientos;
     if (nuevo) ls.set("recordMemory", { movimientos, tiempo });
+    if (nuevo) setTimeout(confeti, 250);
     juego.innerHTML = `
       <div class="resultado">
         <b>${movimientos}</b>
@@ -1192,6 +1334,8 @@
         const rec = ls.get("recordQuiz", null);
         const nuevo = rec == null || puntos > rec;
         if (nuevo) ls.set("recordQuiz", puntos);
+        if ((nuevo && puntos > 0) || puntos === 10) setTimeout(confeti, 250);
+        marcarDiaEstudio();
         juego.innerHTML = `
           <div class="resultado">
             <b>${puntos}/10</b>
@@ -1217,6 +1361,7 @@
     if (nuevo) ls.set(claveRecord, puntos);
     marcarDiaEstudio();
     const r = puntos / total;
+    if ((nuevo && puntos > 0) || r === 1) setTimeout(confeti, 250);
     juego.innerHTML = `
       <div class="resultado">
         <b>${puntos}/${total}</b>
@@ -1646,7 +1791,7 @@
     const g = ev.target.closest("[data-guardar]");
     if (g && !g.disabled) { g.disabled = true; g.textContent = "Guardando…"; await guardarHallazgoActual(); g.textContent = "Guardado ✓"; }
     const img = ev.target.closest(".fotos-id img");
-    if (img) verFoto(img.src);
+    if (img) verFoto(img.src, img.closest(".fotos-id"));
   });
 
   /* ---------------- Mis hallazgos y mapa ---------------- */
@@ -1684,7 +1829,7 @@
     const h = { ...ultimoResultado, foto, id: "h" + Date.now(), fecha: Date.now(), lat: pos?.lat ?? null, lon: pos?.lon ?? null };
     try {
       await operarHallazgo("put", h);
-      if (!pos) alert("Guardado. No se ha podido obtener la ubicación, así que no saldrá en el mapa.");
+      avisoToast(pos ? "Guardado en tus hallazgos 📍" : "Guardado (sin ubicación, no saldrá en el mapa)");
       marcarDiaEstudio();
       renderHallazgos();
     } catch (e) {
@@ -1990,6 +2135,7 @@
     irA(ls.get("vista", "inicio"));
     pintarPuntoRecordatorio();
     guardarKV("ultimoDiaEstudio", ls.get("diasEstudio", []).slice(-1)[0] ?? null);
+    asegurarAvisos();
     $("#btn-clave").hidden = !remoto;
     $("#btn-sync").hidden = !remoto;
     pintarEstadoSync();
