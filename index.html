@@ -132,6 +132,58 @@
       <div id="juego"></div>
     </section>
 
+    <!-- ===================== IDENTIFICA ===================== -->
+    <section class="vista" id="vista-identifica" hidden>
+      <nav class="barra">
+        <span class="barra-hueco"></span>
+        <svg class="logo" viewBox="0 0 48 32" aria-hidden="true"><use href="#i-logo"/></svg>
+        <span class="barra-hueco"></span>
+      </nav>
+      <header class="titulo">
+        <p class="antetitulo">Con la cámara</p>
+        <h1>Identifica</h1>
+      </header>
+
+      <div class="identifica">
+        <!-- Paso 1: hacer la foto -->
+        <div id="id-captura">
+          <div class="camara">
+            <div class="camara-foto" id="id-previa">
+              <svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+              <p>Haz una foto a una planta y te diré qué especie es</p>
+            </div>
+            <div class="cara-pie">
+              <div>
+                <strong>¿Qué parte fotografías?</strong>
+                <div class="chips organos" id="id-organo">
+                  <button data-v="auto" class="activo">Automático</button>
+                  <button data-v="leaf">Hoja</button>
+                  <button data-v="flower">Flor</button>
+                  <button data-v="fruit">Fruto</button>
+                  <button data-v="bark">Tronco</button>
+                  <button data-v="habit">Planta entera</button>
+                </div>
+              </div>
+            </div>
+            <div class="camara-botones">
+              <label class="btn claro">
+                <input type="file" accept="image/*" capture="environment" id="id-camara" hidden>
+                Hacer foto
+              </label>
+              <label class="btn">
+                <input type="file" accept="image/*" id="id-galeria" hidden>
+                De la galería
+              </label>
+            </div>
+          </div>
+          <p class="nota-dia">Consejo: fotografía de cerca una hoja o una flor, bien enfocada y con buena luz.</p>
+        </div>
+
+        <!-- Paso 2: resultado -->
+        <div id="id-resultado" hidden></div>
+      </div>
+    </section>
+
   </div>
 
   <!-- Navegación inferior -->
@@ -143,6 +195,10 @@
     <button data-vista="herbario">
       <svg viewBox="0 0 24 24"><path d="M5 20c0-9 5-14 14-15-1 9-6 14-14 15zM5 20l7-7"/></svg>
       <span>Herbario</span>
+    </button>
+    <button data-vista="identifica">
+      <svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      <span>Identifica</span>
     </button>
     <button data-vista="jugar">
       <svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>

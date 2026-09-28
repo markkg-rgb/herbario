@@ -12,4 +12,12 @@
 window.CONFIG = {
   SUPABASE_URL: "",   // p. ej. "https://abcdefgh.supabase.co"
   SUPABASE_KEY: "",   // la "anon public key"
+
+  /*
+   * IDENTIFICACIÓN POR FOTO (Pl@ntNet)
+   * Clave gratuita en https://my.plantnet.org (cuenta → API key).
+   * En la misma página, añade "markkg-rgb.github.io" como dominio
+   * autorizado para que solo funcione desde tu app.
+   */
+  PLANTNET_KEY: "",
 };

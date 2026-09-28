@@ -146,7 +146,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--verde-
 /* ---------- Navegación inferior ---------- */
 .navegacion {
   position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 30;
-  width: min(440px, calc(100% - 28px)); display: grid; grid-template-columns: repeat(3, 1fr);
+  width: min(520px, calc(100% - 28px)); display: grid; grid-template-columns: repeat(4, 1fr);
   background: var(--blanco); border-radius: var(--r-lg); box-shadow: var(--sombra); padding: 6px;
 }
 .navegacion button { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 13px 6px; border-radius: 18px; font-weight: 600; font-size: .88rem; }
@@ -292,6 +292,76 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--verde-
 .resultado p { margin: 10px 0 22px; }
 .resultado .dorso-botones { justify-content: center; }
 
+/* ---------- Identifica ---------- */
+.identifica { max-width: 480px; margin: 0 auto; }
+.camara { background: var(--verde); color: var(--blanco); border-radius: var(--r-xl); box-shadow: var(--sombra); overflow: hidden; }
+.camara-foto {
+  margin: 14px 14px 0; border-radius: 24px; aspect-ratio: 4 / 3; background: var(--verde-osc);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 20px;
+  background-size: cover; background-position: center;
+}
+.camara-foto svg { width: 56px; height: 56px; opacity: .8; }
+.camara-foto p { margin: 0; font-size: .9rem; opacity: .85; max-width: 240px; }
+.camara-foto.con-foto > * { display: none; }
+.camara .cara-pie { padding-bottom: 6px; }
+.camara .cara-pie > div { flex: 1; min-width: 0; }
+.camara .cara-pie strong { font-size: 1rem; margin-bottom: 8px; }
+.organos { flex-wrap: wrap; overflow: visible; padding: 0; }
+.organos button { background: rgba(255,255,255,.16); color: var(--blanco); padding: 6px 12px; font-size: .78rem; }
+.organos button.activo { background: var(--blanco); color: var(--verde-osc); }
+.camara-botones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 22px 24px; }
+.camara-botones .btn { text-align: center; cursor: pointer; }
+
+.cargando { text-align: center; padding: 30px 0; color: var(--suave); }
+.cargando .foto-mini { width: 140px; height: 140px; border-radius: 50%; object-fit: cover; margin: 0 auto 16px; display: block; border: 5px solid var(--verde); animation: latido 1.2s ease-in-out infinite; }
+@keyframes latido { 50% { transform: scale(.94); opacity: .8; } }
+
+.sello {
+  display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 99px;
+  font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+}
+.sello svg { width: 18px; height: 18px; stroke-width: 2.6; }
+.sello.si { background: var(--verde-claro); color: var(--verde-osc); }
+.sello.no { background: #f3e9d2; color: #7a5a14; }
+
+.resultado-id { border-radius: var(--r-xl); overflow: hidden; box-shadow: var(--sombra); }
+.resultado-id.en-herbario { background: var(--verde); color: var(--blanco); }
+.resultado-id.fuera { background: var(--blanco); color: var(--texto); }
+.resultado-id .cab { padding: 22px 22px 0; }
+.resultado-id h2 { font-size: 1.9rem; line-height: 1.1; margin: 14px 0 0; }
+.resultado-id .sub { margin: 6px 0 0; font-size: .95rem; opacity: .9; }
+.resultado-id .confianza { margin: 14px 0 0; }
+.confianza-barra { height: 8px; border-radius: 99px; background: rgba(0,0,0,.12); overflow: hidden; margin-top: 6px; }
+.en-herbario .confianza-barra { background: rgba(255,255,255,.2); }
+.confianza-barra div { height: 100%; border-radius: 99px; background: var(--verde-claro); }
+.fuera .confianza-barra div { background: var(--verde); }
+.confianza span { font-size: .8rem; opacity: .85; }
+.resultado-id .fotos-id { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 16px 22px 0; }
+.resultado-id .fotos-id .foto { aspect-ratio: 1; border-radius: 16px; }
+.resultado-id .fotos-id figcaption { font-size: .7rem; text-align: center; margin-top: 4px; opacity: .8; }
+.resultado-id .cuerpo { padding: 16px 22px 22px; }
+.resultado-id .cuerpo p { line-height: 1.55; font-size: .92rem; margin: 0 0 12px; }
+.resultado-id .clave li { color: var(--texto); font-size: .88rem; }
+.resultado-id .datos-id { margin: 0 0 14px; padding: 0; list-style: none; font-size: .88rem; }
+.resultado-id .datos-id li { padding: 7px 0; border-top: 1px solid rgba(0,0,0,.07); display: flex; gap: 10px; }
+.resultado-id .datos-id b { min-width: 110px; font-weight: 500; color: var(--suave); }
+.resultado-id a { color: var(--verde-osc); font-weight: 600; }
+.aviso-id { background: #fff6dd; color: #6d5210; border-radius: var(--r-md); padding: 12px 14px; font-size: .85rem; line-height: 1.45; margin: 0 0 14px; }
+.en-herbario .aviso-id { background: rgba(255,255,255,.16); color: var(--blanco); }
+.pariente { background: var(--menta); border-radius: var(--r-md); padding: 12px 14px; font-size: .88rem; margin: 0 0 14px; }
+
+.alternativas { margin-top: 22px; }
+.alternativas h3 { font-size: 1rem; margin: 0 0 10px; }
+.alternativa { display: flex; align-items: center; gap: 12px; background: var(--blanco); border-radius: var(--r-md); padding: 10px 14px; margin-bottom: 8px; width: 100%; text-align: left; }
+.alternativa .nombre { flex: 1; font-size: .88rem; font-weight: 600; }
+.alternativa .nombre i { font-weight: 500; }
+.alternativa .nombre small { display: block; font-weight: 400; color: var(--suave); font-size: .75rem; }
+.alternativa .pct { font-weight: 700; color: var(--verde-osc); font-size: .9rem; }
+.alternativa .mini-sello { font-size: .65rem; font-weight: 700; background: var(--verde-claro); color: var(--verde-osc); padding: 3px 8px; border-radius: 99px; }
+.pie-id { display: flex; gap: 10px; margin-top: 18px; }
+.pie-id .btn { flex: 1; text-align: center; }
+.creditos-id { font-size: .7rem; color: var(--suave); text-align: center; margin-top: 14px; }
+
 /* ---------- Formulario ---------- */
 #form-especie { padding: 24px 28px 40px; display: flex; flex-direction: column; gap: 14px; }
 #form-especie h2 { margin: 0; font-size: 1.8rem; }
@@ -325,5 +395,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--verde-
   .rejilla-plantas { grid-template-columns: repeat(2, 1fr); gap: 12px; }
   .cara { min-height: 500px; }
   .cara-frente .foto { min-height: 340px; }
-  .navegacion button span { font-size: .8rem; }
+  .navegacion { padding: 5px; }
+  .navegacion button { flex-direction: column; gap: 3px; padding: 9px 2px 8px; border-radius: 16px; }
+  .navegacion button span { font-size: .7rem; }
 }

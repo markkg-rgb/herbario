@@ -804,6 +804,234 @@
   }
 
   /* =========================================================
+   * IDENTIFICA — reconocer una planta con la cámara (Pl@ntNet)
+   * ========================================================= */
+  const ICONO_CHECK = `<svg viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg>`;
+  const ICONO_INFO = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>`;
+  const idCaptura = $("#id-captura"), idResultado = $("#id-resultado"), idPrevia = $("#id-previa");
+  let organo = "auto";
+
+  $("#id-organo").addEventListener("click", (ev) => {
+    const b = ev.target.closest("button");
+    if (!b) return;
+    organo = b.dataset.v;
+    $$("#id-organo button").forEach((x) => x.classList.toggle("activo", x === b));
+  });
+  ["#id-camara", "#id-galeria"].forEach((s) => $(s).addEventListener("change", (ev) => {
+    const archivo = ev.target.files[0];
+    ev.target.value = "";
+    if (archivo) identificar(archivo);
+  }));
+
+  // Nombre científico "Género especie" en minúsculas, sin autor ni signos
+  const binomio = (n) => norm(n).replace(/×|\bx\b/g, " ").replace(/[^a-z\s-]/g, " ").split(/\s+/).filter(Boolean).slice(0, 2).join(" ");
+  const genero = (n) => binomio(n).split(" ")[0];
+
+  /** Busca la especie identificada en el herbario (por nombre o sinónimo). */
+  function buscarEnHerbario(nombreCientifico) {
+    const b = binomio(nombreCientifico);
+    for (const e of todasLasEspecies()) {
+      if (binomio(e.nombres.lat) === b) return { especie: e, via: null };
+      const sin = (e.sinonimos || []).find((s) => binomio(s) === b);
+      if (sin) return { especie: e, via: sin };
+    }
+    return null;
+  }
+  const parientesEnHerbario = (nombreCientifico) =>
+    todasLasEspecies().filter((e) => genero(e.nombres.lat) === genero(nombreCientifico));
+
+  async function resumenWikipedia(nombre, idioma) {
+    try {
+      const r = await fetch(`https://${idioma}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(nombre.replace(/ /g, "_"))}`);
+      if (!r.ok) return null;
+      const j = await r.json();
+      if (j.type === "disambiguation" || !j.extract) return null;
+      return { titulo: j.title, texto: j.extract, url: j.content_urls?.desktop?.page, foto: j.thumbnail?.source };
+    } catch { return null; }
+  }
+
+  function volverACaptura() {
+    idResultado.hidden = true;
+    idCaptura.hidden = false;
+    idPrevia.classList.remove("con-foto");
+    idPrevia.style.backgroundImage = "";
+    window.scrollTo(0, 0);
+  }
+
+  async function identificar(archivo) {
+    const foto = await reducirImagen(archivo, 1280);
+    idPrevia.style.backgroundImage = `url(${foto})`;
+    idPrevia.classList.add("con-foto");
+    idCaptura.hidden = true;
+    idResultado.hidden = false;
+    window.scrollTo(0, 0);
+
+    if (!CFG.PLANTNET_KEY) {
+      idResultado.innerHTML = `
+        <div class="resultado-id fuera"><div class="cuerpo" style="padding-top:22px">
+          <p class="aviso-id">La identificación todavía no está activada: falta la clave de Pl@ntNet en <b>js/config.js</b>.</p>
+        </div></div>
+        <div class="pie-id"><button class="btn principal" data-otra>Volver</button></div>`;
+      return;
+    }
+    if (!navigator.onLine) {
+      idResultado.innerHTML = `
+        <div class="resultado-id fuera"><div class="cuerpo" style="padding-top:22px">
+          <p class="aviso-id">Para identificar una planta hace falta conexión a internet. El resto de la app funciona sin conexión.</p>
+        </div></div>
+        <div class="pie-id"><button class="btn principal" data-otra>Volver</button></div>`;
+      return;
+    }
+
+    idResultado.innerHTML = `
+      <div class="cargando">
+        <img class="foto-mini" src="${foto}" alt="">
+        <strong>Identificando…</strong><br><small>Comparando con miles de especies</small>
+      </div>`;
+
+    try {
+      const blob = await (await fetch(foto)).blob();
+      const datos = new FormData();
+      datos.append("images", blob, "foto.jpg");
+      datos.append("organs", organo);
+      const url = "https://my-api.plantnet.org/v2/identify/all?" + new URLSearchParams({
+        "api-key": CFG.PLANTNET_KEY, lang: "es", "nb-results": "5", "include-related-images": "true",
+      });
+      const res = await fetch(url, { method: "POST", body: datos });
+      if (res.status === 404) { mostrarSinResultado(foto); return; }
+      if (!res.ok) throw new Error(res.status + " " + (await res.text()).slice(0, 200));
+      const j = await res.json();
+      if (!j.results?.length) { mostrarSinResultado(foto); return; }
+      await mostrarResultado(foto, j.results);
+    } catch (e) {
+      console.warn(e);
+      idResultado.innerHTML = `
+        <div class="resultado-id fuera"><div class="cuerpo" style="padding-top:22px">
+          <p class="aviso-id">No se ha podido identificar la foto. Comprueba la conexión y vuelve a intentarlo.</p>
+        </div></div>
+        <div class="pie-id"><button class="btn principal" data-otra>Probar otra vez</button></div>`;
+    }
+  }
+
+  function mostrarSinResultado(foto) {
+    idResultado.innerHTML = `
+      <div class="resultado-id fuera">
+        <div class="cab"><span class="sello no">${ICONO_INFO} Sin resultado</span></div>
+        <div class="cuerpo" style="padding-top:16px">
+          <p>No he reconocido ninguna planta en esta foto.</p>
+          <p class="aviso-id">Prueba con una foto más cercana de una hoja o una flor, bien enfocada, con fondo sencillo y buena luz.</p>
+        </div>
+      </div>
+      <div class="pie-id"><button class="btn principal" data-otra>Hacer otra foto</button></div>`;
+  }
+
+  const pct = (s) => Math.round(s * 100);
+  const barraConfianza = (s) => `
+    <div class="confianza">
+      <span>Coincidencia: <b>${pct(s)} %</b>${s < 0.25 ? " · poco segura" : s < 0.5 ? " · probable" : " · muy probable"}</span>
+      <div class="confianza-barra"><div style="width:${Math.max(4, pct(s))}%"></div></div>
+    </div>`;
+
+  async function mostrarResultado(foto, resultados) {
+    const mejor = resultados[0];
+    const cientifico = mejor.species.scientificNameWithoutAuthor;
+    const enHerbario = buscarEnHerbario(cientifico);
+    const dudosa = mejor.score < 0.25;
+    const avisoDuda = dudosa ? `<p class="aviso-id">No estoy muy seguro. Mira también las otras posibilidades de abajo o prueba con otra foto más cercana.</p>` : "";
+
+    let tarjeta;
+    if (enHerbario) {
+      const e = enHerbario.especie;
+      tarjeta = `
+        <div class="resultado-id en-herbario">
+          <div class="cab">
+            <span class="sello si">${ICONO_CHECK} ¡Está en tu herbario!</span>
+            <h2>${esc(e.nombres.ca)}</h2>
+            <p class="sub">${esc(e.nombres.es)} · <i>${esc(e.nombres.lat)}</i></p>
+            ${barraConfianza(mejor.score)}
+          </div>
+          <div class="fotos-id">
+            <div><figure class="foto"><img src="${foto}" alt="Tu foto"></figure><figcaption>Tu foto</figcaption></div>
+            <div>${htmlFoto(e, "planta", "Planta")}<figcaption>Planta</figcaption></div>
+            <div>${htmlFoto(e, "hoja", "Hoja")}<figcaption>Hoja</figcaption></div>
+          </div>
+          <div class="cuerpo">
+            ${avisoDuda}
+            ${enHerbario.via ? `<p class="aviso-id">Pl@ntNet la ha identificado como <i>${esc(enHerbario.via)}</i>, que se estudia dentro de esta ficha.</p>` : ""}
+            <p>${esc(e.descripcion)}</p>
+            ${e.identificacion?.length ? `<ul class="clave">${e.identificacion.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+            <div class="pie-id"><button class="btn claro" data-ficha="${esc(e.id)}">Ver ficha completa</button></div>
+          </div>
+        </div>`;
+    } else {
+      const sp = mejor.species;
+      const comunes = (sp.commonNames || []).slice(0, 4);
+      const [wikiEs, wikiCa] = await Promise.all([resumenWikipedia(cientifico, "es"), resumenWikipedia(cientifico, "ca")]);
+      const wiki = wikiEs || (await resumenWikipedia(cientifico, "en"));
+      const nombreCa = wikiCa && binomio(wikiCa.titulo) !== binomio(cientifico) ? wikiCa.titulo : "";
+      const refFoto = mejor.images?.[0]?.url?.m || wiki?.foto;
+      const parientes = parientesEnHerbario(cientifico);
+      const titulo = comunes[0] || wiki?.titulo || cientifico;
+      tarjeta = `
+        <div class="resultado-id fuera">
+          <div class="cab">
+            <span class="sello no">${ICONO_INFO} No está en tu herbario</span>
+            <h2>${esc(mayus(titulo))}</h2>
+            <p class="sub"><i>${esc(cientifico)}</i></p>
+            ${barraConfianza(mejor.score)}
+          </div>
+          <div class="fotos-id" style="grid-template-columns:1fr 1fr">
+            <div><figure class="foto"><img src="${foto}" alt="Tu foto"></figure><figcaption>Tu foto</figcaption></div>
+            ${refFoto ? `<div><figure class="foto"><img src="${esc(refFoto)}" alt="Foto de referencia" onerror="this.parentNode.classList.add('sin-foto')"></figure><figcaption>Referencia</figcaption></div>` : ""}
+          </div>
+          <div class="cuerpo">
+            ${avisoDuda}
+            <ul class="datos-id">
+              <li><b>Científico</b><span><i>${esc(cientifico)}</i></span></li>
+              ${comunes.length ? `<li><b>Castellano</b><span>${esc(comunes.join(", "))}</span></li>` : ""}
+              ${nombreCa ? `<li><b>Catalán</b><span>${esc(nombreCa)}</span></li>` : ""}
+              ${sp.family ? `<li><b>Familia</b><span>${esc(sp.family.scientificNameWithoutAuthor)}</span></li>` : ""}
+              ${sp.genus ? `<li><b>Género</b><span><i>${esc(sp.genus.scientificNameWithoutAuthor)}</i></span></li>` : ""}
+            </ul>
+            ${parientes.length ? `<p class="pariente">Es del mismo género que ${parientes.map((p) => `<a href="#" data-ficha="${esc(p.id)}">${esc(p.nombres.ca)}</a>`).join(", ")}, que sí está en tu herbario.</p>` : ""}
+            ${wiki ? `<p>${esc(wiki.texto.length > 520 ? wiki.texto.slice(0, 520).replace(/\s\S*$/, "") + "…" : wiki.texto)}</p>
+              <p><a href="${esc(wiki.url)}" target="_blank" rel="noopener">Leer más en Wikipedia →</a></p>` : ""}
+          </div>
+        </div>`;
+    }
+
+    const otras = resultados.slice(1, 4).filter((r) => r.score >= 0.02);
+    const alternativas = otras.length ? `
+      <section class="alternativas">
+        <h3>Otras posibilidades</h3>
+        ${otras.map((r) => {
+          const n = r.species.scientificNameWithoutAuthor;
+          const h = buscarEnHerbario(n);
+          return `<button class="alternativa" ${h ? `data-ficha="${esc(h.especie.id)}"` : "disabled"}>
+            <span class="nombre">${h ? esc(h.especie.nombres.ca) + " · " : ""}<i>${esc(n)}</i>
+              <small>${esc((r.species.commonNames || [])[0] || r.species.family?.scientificNameWithoutAuthor || "")}</small></span>
+            ${h ? `<span class="mini-sello">En tu herbario</span>` : ""}
+            <span class="pct">${pct(r.score)} %</span>
+          </button>`;
+        }).join("")}
+      </section>` : "";
+
+    idResultado.innerHTML = `
+      ${tarjeta}
+      ${alternativas}
+      <div class="pie-id"><button class="btn principal" data-otra>Identificar otra planta</button></div>
+      <p class="creditos-id">Identificación: Pl@ntNet · Información adicional: Wikipedia</p>`;
+  }
+
+  idResultado.addEventListener("click", (ev) => {
+    const f = ev.target.closest("[data-ficha]");
+    if (f) { ev.preventDefault(); abrirFicha(f.dataset.ficha); return; }
+    if (ev.target.closest("[data-otra]")) volverACaptura();
+    const img = ev.target.closest(".fotos-id img");
+    if (img) verFoto(img.src);
+  });
+
+  /* =========================================================
    * FORMULARIO (crear / editar)
    * ========================================================= */
   const dlgForm = $("#dlg-form");
