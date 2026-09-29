@@ -1,0 +1,40 @@
+rules_version = '2';
+
+// =========================================================
+// Reglas de seguridad de Firestore para Herbolario
+// Firebase → Firestore Database → Reglas → pegar → Publicar
+//
+// Modo abierto: cualquiera con la app puede leer, añadir,
+// editar y borrar especies. El historial solo admite añadir
+// copias (nadie puede leerlo, cambiarlo ni borrarlo desde la
+// app); se consulta desde la consola de Firebase.
+// =========================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function especieValida() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['json', 'borrada', 'actualizado'])
+        && d.json is string && d.json.size() > 2 && d.json.size() < 1000000
+        && d.borrada is bool
+        && d.actualizado is timestamp;
+    }
+
+    match /especies/{id} {
+      allow read: if true;
+      allow create, update: if especieValida() && id.size() < 120;
+      allow delete: if true;
+    }
+
+    match /historial/{doc} {
+      allow create: if request.resource.data.keys().hasOnly(['id', 'json', 'borrada', 'operacion', 'fecha'])
+        && request.resource.data.json is string && request.resource.data.json.size() < 1000000;
+      allow read, update, delete: if false;
+    }
+
+    // Todo lo demás, cerrado
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

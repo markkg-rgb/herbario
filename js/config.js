@@ -10,8 +10,19 @@
  * clave de edición configurada en supabase.sql.
  */
 window.CONFIG = {
+  /*
+   * BASE DE DATOS COMPARTIDA: FIREBASE (Firestore)
+   * Consola de Firebase → Configuración del proyecto → General.
+   * Las reglas de seguridad están en firestore.rules.
+   */
+  FIREBASE_PROYECTO: "",  // ID del proyecto, p. ej. "herbolario-1234"
+  FIREBASE_KEY: "",       // "Clave de API web"
+
+  /* Alternativa: Supabase (solo se usa si Firebase está vacío) */
   SUPABASE_URL: "",   // p. ej. "https://abcdefgh.supabase.co"
   SUPABASE_KEY: "",   // la "anon public key"
+  // false = cualquiera con la app puede añadir/editar (modo abierto)
+  CLAVE_REQUERIDA: false,
 
   /*
    * IDENTIFICACIÓN POR FOTO (Pl@ntNet)

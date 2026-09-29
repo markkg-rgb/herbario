@@ -158,48 +158,118 @@
     });
   }
 
-  /* ---------------- Base de datos compartida (Supabase) ----------------
-   * Si config.js tiene URL y clave, la tabla "especies" online es la
-   * fuente de verdad: todos los dispositivos ven lo mismo. La copia en
-   * IndexedDB sirve para abrir la app al instante y sin conexión.
-   * Para escribir hace falta la clave de edición (cabecera x-clave-edicion).
+  /* ---------------- Base de datos compartida (Firebase o Supabase) ----------------
+   * Si config.js tiene los datos de Firebase (o de Supabase), la colección
+   * "especies" online es la fuente de verdad: todos los dispositivos ven lo
+   * mismo. La copia en IndexedDB sirve para abrir la app al instante y sin
+   * conexión. Antes de cada cambio o borrado se guarda una copia de la
+   * versión anterior en "historial" para poder recuperarla.
    */
   const CFG = window.CONFIG || {};
-  const remoto = !!(CFG.SUPABASE_URL && CFG.SUPABASE_KEY);
   const claveGuardada = () => ls.get("claveEdicion", "");
 
-  async function api(ruta, opciones = {}, clave = claveGuardada()) {
-    const res = await fetch(CFG.SUPABASE_URL.replace(/\/$/, "") + "/rest/v1/" + ruta, {
-      ...opciones,
-      headers: {
-        apikey: CFG.SUPABASE_KEY,
-        Authorization: "Bearer " + CFG.SUPABASE_KEY,
-        "Content-Type": "application/json",
-        ...(clave ? { "x-clave-edicion": clave } : {}),
-        ...(opciones.headers || {}),
+  /* --- Firebase (Firestore, por su API REST: sin librerías) --- */
+  const firestore = CFG.FIREBASE_PROYECTO && CFG.FIREBASE_KEY && (() => {
+    const base = `https://firestore.googleapis.com/v1/projects/${CFG.FIREBASE_PROYECTO}/databases/(default)/documents`;
+    const conClave = (url) => url + (url.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(CFG.FIREBASE_KEY);
+    async function pedir(url, opciones = {}) {
+      const res = await fetch(conClave(url), { ...opciones, headers: { "Content-Type": "application/json", ...(opciones.headers || {}) } });
+      if (!res.ok && res.status !== 404) {
+        const err = new Error((await res.text()) || res.statusText);
+        err.permiso = res.status === 401 || res.status === 403;
+        throw err;
+      }
+      return res.status === 404 ? null : res.json().catch(() => null);
+    }
+    const campos = (datos, borrada) => ({
+      fields: {
+        json: { stringValue: JSON.stringify(datos) },
+        borrada: { booleanValue: !!borrada },
+        actualizado: { timestampValue: new Date().toISOString() },
       },
     });
-    if (!res.ok) {
-      const txt = await res.text();
-      const err = new Error(txt || res.statusText);
-      err.permiso = res.status === 401 || res.status === 403 || /row-level security/i.test(txt);
-      throw err;
-    }
-    return res.status === 204 ? null : res.json().catch(() => null);
-  }
+    return {
+      async listar() {
+        const filas = [];
+        let token = "";
+        do {
+          const j = await pedir(`${base}/especies?pageSize=300${token ? "&pageToken=" + encodeURIComponent(token) : ""}`);
+          for (const d of j?.documents || []) {
+            try {
+              filas.push({ id: decodeURIComponent(d.name.split("/").pop()), datos: JSON.parse(d.fields.json.stringValue), borrada: !!d.fields.borrada?.booleanValue });
+            } catch { /* documento mal formado: se ignora */ }
+          }
+          token = j?.nextPageToken || "";
+        } while (token);
+        return filas;
+      },
+      async historial(id, datosAnteriores, borradaAntes, operacion) {
+        if (datosAnteriores === undefined) return; // no había nada que guardar
+        await pedir(`${base}/historial`, {
+          method: "POST",
+          body: JSON.stringify({ fields: {
+            id: { stringValue: id },
+            json: { stringValue: JSON.stringify(datosAnteriores) },
+            borrada: { booleanValue: !!borradaAntes },
+            operacion: { stringValue: operacion },
+            fecha: { timestampValue: new Date().toISOString() },
+          } }),
+        });
+      },
+      guardar: (id, datos, borrada = false) =>
+        pedir(`${base}/especies/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(campos(datos, borrada)) }),
+      borrar: (id) => pedir(`${base}/especies/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    };
+  })();
 
-  /** Pide la clave de edición (si no está guardada) y la comprueba. */
+  /* --- Supabase (alternativa) --- */
+  const supabase = !firestore && CFG.SUPABASE_URL && CFG.SUPABASE_KEY && (() => {
+    async function api(ruta, opciones = {}) {
+      const clave = claveGuardada();
+      const res = await fetch(CFG.SUPABASE_URL.replace(/\/$/, "") + "/rest/v1/" + ruta, {
+        ...opciones,
+        headers: {
+          apikey: CFG.SUPABASE_KEY, Authorization: "Bearer " + CFG.SUPABASE_KEY, "Content-Type": "application/json",
+          ...(clave ? { "x-clave-edicion": clave } : {}), ...(opciones.headers || {}),
+        },
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        const err = new Error(txt || res.statusText);
+        err.permiso = res.status === 401 || res.status === 403 || /row-level security/i.test(txt);
+        throw err;
+      }
+      return res.status === 204 ? null : res.json().catch(() => null);
+    }
+    return {
+      listar: () => api("especies?select=id,datos,borrada"),
+      historial: async () => {}, // en Supabase lo guarda un trigger de la base de datos
+      guardar: (id, datos, borrada = false) => api("especies", {
+        method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify([{ id, datos, borrada, actualizado: new Date().toISOString() }]),
+      }),
+      borrar: (id) => api("especies?id=eq." + encodeURIComponent(id), { method: "DELETE" }),
+      comprobarClave: (clave) => fetch(CFG.SUPABASE_URL.replace(/\/$/, "") + "/rest/v1/rpc/clave_valida", {
+        method: "POST", body: "{}",
+        headers: { apikey: CFG.SUPABASE_KEY, Authorization: "Bearer " + CFG.SUPABASE_KEY, "Content-Type": "application/json", "x-clave-edicion": clave },
+      }).then((r) => r.json()),
+    };
+  })();
+
+  const nube = firestore || supabase || null;
+  const remoto = !!nube;
+
+  /** Pide la clave de edición (solo si está activada en config.js). */
   async function asegurarClave() {
-    if (!remoto) return true;
+    if (!remoto || !CFG.CLAVE_REQUERIDA || !nube.comprobarClave) return true;
     if (claveGuardada()) return true;
     const clave = prompt("Introduce la clave de edición para poder añadir o modificar especies:");
     if (!clave) return false;
     try {
-      const ok = await api("rpc/clave_valida", { method: "POST", body: "{}" }, clave.trim());
-      if (!ok) { alert("La clave no es correcta."); return false; }
+      if (!(await nube.comprobarClave(clave.trim()))) { alert("La clave no es correcta."); return false; }
       ls.set("claveEdicion", clave.trim());
       return true;
-    } catch (e) {
+    } catch {
       alert("No se ha podido comprobar la clave (¿hay conexión?).");
       return false;
     }
@@ -210,18 +280,15 @@
       await fn();
       return true;
     } catch (e) {
-      if (e.permiso) { ls.set("claveEdicion", ""); alert("La clave de edición no es válida. Vuelve a introducirla."); }
-      else alert("No se ha podido guardar en la base de datos compartida. Comprueba la conexión.\n\n" + e.message);
+      if (e.permiso && CFG.CLAVE_REQUERIDA) { ls.set("claveEdicion", ""); alert("La clave de edición no es válida. Vuelve a introducirla."); }
+      else alert("No se ha podido guardar en la base de datos compartida. Comprueba la conexión y vuelve a intentarlo.");
+      console.warn(e);
       return false;
     }
   }
 
-  const fila = (id, datos, borrada = false) => ({ id, datos, borrada, actualizado: new Date().toISOString() });
-  const upsert = (filas) => api("especies", {
-    method: "POST",
-    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-    body: JSON.stringify(filas),
-  });
+  // Versión anterior de una especie (para el historial)
+  const anterior = (id) => estado.especies[id] ?? (estado.borradas.includes(id) ? { id } : undefined);
 
   /** Descarga la base de datos compartida y actualiza la copia local. */
   let sincronizando = false;
@@ -229,16 +296,21 @@
     if (!remoto || sincronizando || !navigator.onLine) return;
     sincronizando = true;
     try {
-      const filas = await api("especies?select=id,datos,borrada");
+      const filas = await nube.listar();
       const nuevo = { especies: {}, borradas: [] };
-      for (const f of filas) {
+      for (const f of filas || []) {
         if (f.borrada) nuevo.borradas.push(f.id);
         else nuevo.especies[f.id] = f.datos;
       }
       if (JSON.stringify(nuevo) !== JSON.stringify(estado)) {
+        const antes = new Set(todasLasEspecies().map((e) => e.id));
         estado = nuevo;
         await guardarEstado();
         refrescarTodo();
+        const nuevas = todasLasEspecies().filter((e) => !antes.has(e.id));
+        if (ls.get("ultimaSync", 0) && nuevas.length) {
+          avisoToast(nuevas.length === 1 ? `Nueva especie en el herbario: ${nuevas[0].nombres.ca}` : `${nuevas.length} especies nuevas en el herbario`);
+        }
       }
       ls.set("ultimaSync", Date.now());
     } catch (e) {
@@ -254,14 +326,19 @@
     if (!el) return;
     if (!remoto) { el.textContent = "Datos guardados solo en este dispositivo"; return; }
     const t = ls.get("ultimaSync", 0);
-    el.textContent = t ? `Sincronizado ${new Date(t).toLocaleString("es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : "Sin sincronizar todavía";
+    el.textContent = t ? `Compartido · actualizado ${new Date(t).toLocaleString("es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : "Compartido · sin sincronizar todavía";
   }
 
   /* Operaciones de escritura (online si hay base compartida, local si no) */
   async function guardarEspecie(especie) {
     if (remoto) {
       if (!(await asegurarClave())) return false;
-      if (!(await escribirRemoto(() => upsert([fila(especie.id, especie)])))) return false;
+      const previa = anterior(especie.id);
+      const ok = await escribirRemoto(async () => {
+        await nube.historial(especie.id, previa, estado.borradas.includes(especie.id), previa === undefined ? "CREAR" : "EDITAR");
+        await nube.guardar(especie.id, especie);
+      });
+      if (!ok) return false;
     }
     estado.especies[especie.id] = especie;
     estado.borradas = estado.borradas.filter((b) => b !== especie.id);
@@ -271,9 +348,13 @@
   async function borrarEspecie(id) {
     if (remoto) {
       if (!(await asegurarClave())) return false;
-      const ok = await escribirRemoto(() => baseIds.has(id)
-        ? upsert([fila(id, { id }, true)])
-        : api("especies?id=eq." + encodeURIComponent(id), { method: "DELETE" }));
+      const previa = anterior(id) ?? (baseIds.has(id) ? porId(id) : undefined);
+      const ok = await escribirRemoto(async () => {
+        await nube.historial(id, previa, false, "BORRAR");
+        // Las especies base se marcan como borradas; las creadas en la app se eliminan
+        if (baseIds.has(id)) await nube.guardar(id, { id }, true);
+        else await nube.borrar(id);
+      });
       if (!ok) return false;
     }
     if (baseIds.has(id) && !estado.borradas.includes(id)) estado.borradas.push(id);
@@ -284,7 +365,12 @@
   async function restaurarEspecie(id) {
     if (remoto) {
       if (!(await asegurarClave())) return false;
-      if (!(await escribirRemoto(() => api("especies?id=eq." + encodeURIComponent(id), { method: "DELETE" })))) return false;
+      const previa = anterior(id);
+      const ok = await escribirRemoto(async () => {
+        await nube.historial(id, previa, estado.borradas.includes(id), "RESTAURAR");
+        await nube.borrar(id);
+      });
+      if (!ok) return false;
     }
     delete estado.especies[id];
     estado.borradas = estado.borradas.filter((b) => b !== id);
@@ -294,7 +380,13 @@
   async function importarEspecies(lista) {
     if (remoto) {
       if (!(await asegurarClave())) return false;
-      if (!(await escribirRemoto(() => upsert(lista.map((e) => fila(e.id, e)))))) return false;
+      const ok = await escribirRemoto(async () => {
+        for (const e of lista) {
+          await nube.historial(e.id, anterior(e.id), estado.borradas.includes(e.id), "IMPORTAR");
+          await nube.guardar(e.id, e);
+        }
+      });
+      if (!ok) return false;
     }
     for (const e of lista) {
       estado.especies[e.id] = e;
@@ -2424,7 +2516,7 @@
   const dlgForm = $("#dlg-form");
   const form = $("#form-especie");
 
-  function reducirImagen(archivo, max = 1000) {
+  function reducirImagen(archivo, max = 900) {
     return new Promise((ok, ko) => {
       const lector = new FileReader();
       lector.onload = () => {
@@ -2435,7 +2527,7 @@
           c.width = Math.round(img.width * k);
           c.height = Math.round(img.height * k);
           c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-          ok(c.toDataURL("image/jpeg", 0.8));
+          ok(c.toDataURL("image/jpeg", 0.75));
         };
         img.onerror = ko;
         img.src = lector.result;
@@ -2606,12 +2698,14 @@
     guardarKV("ultimoDiaEstudio", ls.get("diasEstudio", []).slice(-1)[0] ?? null);
     asegurarAvisos();
     if (!ls.get("bienvenidaVista", false)) setTimeout(mostrarBienvenida, 500);
-    $("#btn-clave").hidden = !remoto;
+    $("#btn-clave").hidden = !remoto || !CFG.CLAVE_REQUERIDA;
     $("#btn-sync").hidden = !remoto;
     pintarEstadoSync();
     // Traer lo último de la base compartida al abrir, al recuperar la conexión
     // y al volver a la app (p. ej. al cambiar de app en el móvil).
     sincronizar();
+    // Con la app abierta, mirar cada minuto si otros han añadido o cambiado especies
+    setInterval(() => { if (!document.hidden) sincronizar(); }, 60000);
     window.addEventListener("online", sincronizar);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) sincronizar(); });
   })();
