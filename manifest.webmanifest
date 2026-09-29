@@ -1,14 +1,14 @@
 {
-  "name": "Herbario · Base de datos botánica",
-  "short_name": "Herbario",
+  "name": "Herbolario · Base de datos botánica",
+  "short_name": "Herbolario",
   "description": "Base de datos botánica para estudiar: especie del día, herbario y juegos.",
   "lang": "es",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#ebf7ee",
-  "theme_color": "#2f9a5b",
+  "background_color": "#e6eee2",
+  "theme_color": "#e6eee2",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

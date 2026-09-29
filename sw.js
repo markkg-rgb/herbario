@@ -113,7 +113,7 @@ async function quizasAvisar() {
   if (ahora.getHours() < cfg.hora) return;                     // todavía no es la hora
   if ((await leerKV("ultimoDiaEstudio")) === hoy) return;      // hoy ya has estudiado
   if ((await leerKV("ultimoAviso")) === hoy) return;           // hoy ya se avisó
-  await self.registration.showNotification("Herbario 🌿", {
+  await self.registration.showNotification("Herbolario 🌿", {
     body: "Hay una especie nueva esperándote. ¿Te la sabes? No pierdas la racha.",
     icon: "icons/icon-192.png",
     badge: "icons/icon-192.png",

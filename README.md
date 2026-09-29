@@ -1,4 +1,4 @@
-# Herbario · Base de datos botánica
+# Herbolario · Base de datos botánica
 
 App para estudiar especies botánicas (Espais exteriors i jardineria). Se instala en el móvil como app y funciona sin conexión.
 

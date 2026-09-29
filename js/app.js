@@ -19,15 +19,15 @@
   };
 
   const ICONO = {
-    volver: `<svg viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg>`,
-    lupa: `<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>`,
-    info: `<svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>`,
+    volver: `<svg class="ico"><use href="#i-atras"/></svg>`,
+    lupa: `<svg class="ico"><use href="#i-buscar"/></svg>`,
+    info: `<svg class="ico"><use href="#i-info"/></svg>`,
     logo: `<svg viewBox="0 0 48 32"><use href="#i-logo"/></svg>`,
-    altavoz: `<svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>`,
-    flecha: `<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>`,
-    pdf: `<svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></svg>`,
-    comparar: `<svg viewBox="0 0 24 24"><path d="M8 4v16M16 4v16M3 8h5M16 16h5"/></svg>`,
-    check: `<svg viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg>`,
+    altavoz: `<svg class="ico"><use href="#i-altavoz"/></svg>`,
+    flecha: `<svg class="ico"><use href="#i-abajo"/></svg>`,
+    pdf: `<svg class="ico"><use href="#i-pdf"/></svg>`,
+    comparar: `<svg class="ico"><use href="#i-comparar"/></svg>`,
+    check: `<svg class="ico"><use href="#i-check"/></svg>`,
   };
 
   /* ---------------- Detalles de interfaz: animaciones y avisos ---------------- */
@@ -357,7 +357,14 @@
    *   diasEstudio: [número de día, ...]
    * ========================================================= */
   const progreso = () => ls.get("progreso", {});
+  // Vibración al acertar / fallar (Android; en iPhone no hace nada)
+  function vibrar(bien) {
+    if (sinMovimiento || !navigator.vibrate) return;
+    try { navigator.vibrate(bien ? 18 : [35, 60, 35]); } catch {}
+  }
+
   function registrarRespuesta(id, bien) {
+    vibrar(bien);
     const p = progreso();
     const r = p[id] || { a: 0, f: 0, u: false };
     if (bien) r.a++; else r.f++;
@@ -394,10 +401,10 @@
     const estudiadoHoy = ls.get("diasEstudio", []).includes(numeroDeDia());
     const recQuiz = ls.get("recordQuiz", null);
     const icono = {
-      hoja: `<svg viewBox="0 0 24 24"><path d="M5 20c0-9 5-14 14-15-1 9-6 14-14 15zM5 20l7-7"/></svg>`,
-      fuego: `<svg viewBox="0 0 24 24"><path d="M12 3c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-3.5 2-5 .8 1.2 1.3 2 2.2 2.3C11 8 11.3 5.5 12 3z"/></svg>`,
-      pin: `<svg viewBox="0 0 24 24"><path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/></svg>`,
-      copa: `<svg viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 3M16 6h3a3 3 0 0 1-3 3M12 13v4M9 20h6"/></svg>`,
+      hoja: `<svg class="ico"><use href="#i-hoja"/></svg>`,
+      fuego: `<svg class="ico"><use href="#i-llama"/></svg>`,
+      pin: `<svg class="ico"><use href="#i-ubicacion"/></svg>`,
+      copa: `<svg class="ico"><use href="#i-trofeo"/></svg>`,
     };
     cont.innerHTML = `
       <div class="progreso-tarjeta">
@@ -546,11 +553,76 @@
     await asegurarAvisos();
     if (Notification.permission === "granted") avisoToast("Recordatorio diario activado 🌿");
   }
-  // Primer toque en la app → pedir permiso (se repite en cada sesión mientras no se conceda)
+  // Si ya se vio la bienvenida y el permiso sigue sin contestar,
+  // se vuelve a pedir en el primer toque de cada sesión.
   document.addEventListener("pointerup", function primerToque() {
     document.removeEventListener("pointerup", primerToque, true);
-    setTimeout(pedirPermisoAvisos, 400);
+    if (ls.get("bienvenidaVista", false)) setTimeout(pedirPermisoAvisos, 400);
   }, true);
+
+  /* ---------------- Bienvenida (primera vez) ---------------- */
+  const dlgBienvenida = $("#dlg-bienvenida");
+  const ico = (n) => `<svg class="ico"><use href="#i-${n}"/></svg>`;
+
+  function mostrarBienvenida() {
+    const pasos = [
+      `<div class="bv-logo"><svg viewBox="0 0 48 32"><use href="#i-logo"/></svg></div>
+       <h2><span class="fino">Te damos la bienvenida a</span><br>Herbolario</h2>
+       <p>Tu base de datos botánica para estudiar <b>Espais exteriors i jardineria</b>: especies, fichas completas, fotos y juegos para aprender cada día.</p>`,
+      `<h2><span class="fino">Todo lo que</span><br>puedes hacer</h2>
+       <ul class="bv-lista">
+         <li><i>${ico("destellos")}</i><div><b>Especie del día</b><span>Una nueva cada 24 h. ¿Te la sabes? Gira la tarjeta.</span></div></li>
+         <li><i>${ico("hoja")}</i><div><b>Herbario</b><span>Fichas con fotos, claves, calendario y jardinería.</span></div></li>
+         <li><i>${ico("camara")}</i><div><b>Identifica</b><span>Haz una foto y descubre qué planta es.</span></div></li>
+         <li><i>${ico("mando")}</i><div><b>Jugar</b><span>Siete juegos para repasar y ganar tu racha.</span></div></li>
+       </ul>`,
+      `<div class="bv-campana">${ico("campana")}</div>
+       <h2><span class="fino">No pierdas</span><br>tu racha</h2>
+       <p>Te avisaremos cada día para descubrir la especie del día. Pulsa <b>«Permitir»</b> cuando el móvil te pregunte.</p>
+       ${esIOS() && !soportaSyncPeriodico() ? `<p class="bv-nota">En iPhone, además, puedes añadir el aviso a tu calendario desde la campana del inicio.</p>` : ""}`,
+    ];
+    let i = 0;
+    const pintar = (dir = 0) => {
+      const ultimo = i === pasos.length - 1;
+      dlgBienvenida.innerHTML = `
+        <div class="bv">
+          <div class="bv-paso ${dir > 0 ? "desde-der" : dir < 0 ? "desde-izq" : ""}">${pasos[i]}</div>
+          <div class="bv-pie">
+            <div class="bv-puntos">${pasos.map((_, n) => `<i class="${n === i ? "activo" : ""}"></i>`).join("")}</div>
+            <button class="btn principal bv-boton" data-bv="${ultimo ? "fin" : "sig"}">${ultimo ? `${ico("campana")} Activar recordatorio` : "Siguiente"}</button>
+          </div>
+        </div>`;
+    };
+    const terminar = async () => {
+      ls.set("bienvenidaVista", true);
+      await pedirPermisoAvisos();
+      dlgBienvenida.close();
+      pintarPuntoRecordatorio();
+    };
+    dlgBienvenida.onclick = (ev) => {
+      const b = ev.target.closest("[data-bv]");
+      if (!b) return;
+      if (b.dataset.bv === "sig") { i++; pintar(1); }
+      else terminar();
+    };
+    // Deslizar entre pasos
+    let x0 = null;
+    dlgBienvenida.ontouchstart = (ev) => { x0 = ev.touches[0].clientX; };
+    dlgBienvenida.ontouchend = (ev) => {
+      if (x0 == null) return;
+      const dx = ev.changedTouches[0].clientX - x0; x0 = null;
+      if (dx < -50 && i < pasos.length - 1) { i++; pintar(1); }
+      else if (dx > 50 && i > 0) { i--; pintar(-1); }
+    };
+    dlgBienvenida.addEventListener("cancel", (ev) => ev.preventDefault()); // no se cierra con "atrás"
+    pintar();
+    dlgBienvenida.showModal();
+  }
+
+  /* ---------------- Modo oscuro automático ---------------- */
+  const mqOscuro = matchMedia("(prefers-color-scheme: dark)");
+  const aplicarTema = () => { document.documentElement.dataset.tema = mqOscuro.matches ? "oscuro" : "claro"; };
+  mqOscuro.addEventListener?.("change", aplicarTema);
 
   async function probarNotificacion() {
     if (!("Notification" in window) || (await Notification.requestPermission()) !== "granted") {
@@ -558,7 +630,7 @@
       return;
     }
     const reg = await navigator.serviceWorker.ready;
-    reg.showNotification("Herbario", {
+    reg.showNotification("Herbolario", {
       body: "¡Así te llegará el aviso! Hay una especie nueva esperándote. ¿Te la sabes?",
       icon: "icons/icon-192.png", badge: "icons/icon-192.png", tag: "recordatorio",
     });
@@ -572,16 +644,16 @@
     const inicio = `${hoy.getFullYear()}${d(hoy.getMonth() + 1)}${d(hoy.getDate())}T${d(hora)}0000`;
     const fin = `${hoy.getFullYear()}${d(hoy.getMonth() + 1)}${d(hoy.getDate())}T${d(hora)}1500`;
     const ics = [
-      "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Herbario//Recordatorio//ES", "CALSCALE:GREGORIAN",
+      "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Herbolario//Recordatorio//ES", "CALSCALE:GREGORIAN",
       "BEGIN:VEVENT",
       `UID:herbario-recordatorio-${Date.now()}@herbario`,
       `DTSTAMP:${hoy.toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "")}`,
       `DTSTART:${inicio}`, `DTEND:${fin}`,
       "RRULE:FREQ=DAILY",
-      "SUMMARY:🌿 Herbario: ¿te sabes la especie de hoy?",
+      "SUMMARY:🌿 Herbolario: ¿te sabes la especie de hoy?",
       `DESCRIPTION:Abre la app y gira la tarjeta de la especie del día.\\n${url}`,
       `URL:${url}`,
-      "BEGIN:VALARM", "TRIGGER:PT0M", "ACTION:DISPLAY", "DESCRIPTION:Herbario: especie del día", "END:VALARM",
+      "BEGIN:VALARM", "TRIGGER:PT0M", "ACTION:DISPLAY", "DESCRIPTION:Herbolario: especie del día", "END:VALARM",
       "END:VEVENT", "END:VCALENDAR",
     ].join("\r\n");
     const a = document.createElement("a");
@@ -833,10 +905,10 @@
     const sabida = estaSabida(e.id);
 
     const ic = {
-      altura: `<svg viewBox="0 0 24 24"><path d="M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4"/></svg>`,
-      frio: `<svg viewBox="0 0 24 24"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5 12 7l2.5-2.5M9.5 19.5 12 17l2.5 2.5"/></svg>`,
-      hoja: `<svg viewBox="0 0 24 24"><path d="M5 20c0-9 5-14 14-15-1 9-6 14-14 15zM5 20l7-7"/></svg>`,
-      origen: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"/></svg>`,
+      altura: `<svg class="ico"><use href="#i-altura"/></svg>`,
+      frio: `<svg class="ico"><use href="#i-frio"/></svg>`,
+      hoja: `<svg class="ico"><use href="#i-hoja"/></svg>`,
+      origen: `<svg class="ico"><use href="#i-mundo"/></svg>`,
     };
     const origenCorto = (e.origen || "").split(/[(,]/)[0].replace(/^(Endémica de(l)?|Norte de|Sur de|Este de|Oeste de|Noroeste de|Suroeste de)\s+/i, "").trim();
     const casillas = [
@@ -858,7 +930,7 @@
         <button class="icono cristal" data-cerrar aria-label="Volver">${ICONO.volver}</button>
         <span class="botones-cab">
           <button class="icono cristal" data-pdf aria-label="Guardar en PDF" title="PDF">${ICONO.pdf}</button>
-          <button class="icono cristal" data-editar aria-label="Editar" title="Editar"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/></svg></button>
+          <button class="icono cristal" data-editar aria-label="Editar" title="Editar"><svg class="ico"><use href="#i-editar"/></svg></button>
         </span>
       </div>
       <section class="hero hero-v2">
@@ -1050,14 +1122,14 @@
         </header>
         <div class="pdf-fotos">${fotos.map(([t, n]) => `<figure><img src="${esc(e.fotos[t])}" alt=""><figcaption>${n}</figcaption></figure>`).join("")}</div>
         ${seccionesFicha(e, true).map((s) => `<section><h2>${s.titulo}</h2>${s.html}</section>`).join("")}
-        <footer>Herbario · Base de datos botánica — ${new Date().toLocaleDateString("es-ES")}</footer>
+        <footer>Herbolario · Base de datos botánica — ${new Date().toLocaleDateString("es-ES")}</footer>
       </article>`;
     const imgs = $$("img", zona);
     Promise.all(imgs.map((i) => (i.complete ? null : new Promise((r) => { i.onload = i.onerror = r; }))))
       .then(() => {
         document.title = `${e.nombres.ca} - ficha`;
         window.print();
-        document.title = "Herbario · Base de datos botánica";
+        document.title = "Herbolario · Base de datos botánica";
       });
   }
   window.addEventListener("afterprint", () => { $("#impresion").innerHTML = ""; });
@@ -1286,12 +1358,14 @@
       const [a, b] = abiertas;
       if (cartas[a.dataset.i].id === cartas[b.dataset.i].id) {
         a.classList.add("hecha"); b.classList.add("hecha");
+        vibrar(true);
         abiertas = [];
         aciertos++;
         $("#m-par").textContent = `${aciertos}/${pares.length}`;
         if (aciertos === pares.length) setTimeout(() => finMemory(movimientos, tiempo(), pares), 600);
       } else {
         bloqueado = true;
+        vibrar(false);
         setTimeout(() => { a.classList.remove("vuelta"); b.classList.remove("vuelta"); abiertas = []; bloqueado = false; }, 1000);
       }
     };
@@ -1949,8 +2023,8 @@
   /* =========================================================
    * IDENTIFICA — reconocer una planta con la cámara (Pl@ntNet)
    * ========================================================= */
-  const ICONO_CHECK = `<svg viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg>`;
-  const ICONO_INFO = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>`;
+  const ICONO_CHECK = `<svg class="ico"><use href="#i-check"/></svg>`;
+  const ICONO_INFO = `<svg class="ico"><use href="#i-info"/></svg>`;
   const idCaptura = $("#id-captura"), idResultado = $("#id-resultado"), idPrevia = $("#id-previa");
   let organo = "auto";
 
@@ -2501,7 +2575,7 @@
     const blob = new Blob([JSON.stringify(datos, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `herbario-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `herbolario-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   });
@@ -2531,6 +2605,7 @@
     pintarPuntoRecordatorio();
     guardarKV("ultimoDiaEstudio", ls.get("diasEstudio", []).slice(-1)[0] ?? null);
     asegurarAvisos();
+    if (!ls.get("bienvenidaVista", false)) setTimeout(mostrarBienvenida, 500);
     $("#btn-clave").hidden = !remoto;
     $("#btn-sync").hidden = !remoto;
     pintarEstadoSync();
