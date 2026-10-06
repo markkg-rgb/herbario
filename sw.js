@@ -5,7 +5,7 @@
  *  - Fotos: primero caché (se descargan todas al instalar).
  * Cambia VERSION cada vez que publiques cambios en las fotos.
  * ========================================================= */
-const VERSION = "herbario-v2"; // no cambiarla si no cambian las fotos: obliga a volver a descargarlas
+const VERSION = "herbario-v3"; // no cambiarla si no cambian las fotos: obliga a volver a descargarlas
 
 // Fotos de cada especie (planta y hoja siempre; además, las extra que tenga)
 const FOTOS = {
@@ -22,9 +22,14 @@ const FOTOS = {
   "wisteria-sinensis": ["flor", "fruto"],
   "jasminum-officinale": [],
   "plumbago-auriculata": ["flor", "fruto"],
+  // 3 / Árboles de alineación y ornamentales
+  "platanus-hispanica": [], "celtis-australis": [], "tilia-cordata": [], "aesculus-hippocastanum": [],
+  "tipuana-tipu": [], "jacaranda-mimosifolia": [], "melia-azedarach": [], "sophora-japonica": [],
+  "erythrina-crista-galli": [], "magnolia-grandiflora": [], "cercis-siliquastrum": [], "ligustrum-lucidum": [],
+  "schinus-molle": [], "koelreuteria-paniculata": [], "citrus-aurantium": [], "prunus-cerasifera": [], "ginkgo-biloba": [],
 };
 const PRECARGA = [
-  "./", "index.html", "css/estilos.css", "js/config.js", "js/datos.js", "js/app.js", "manifest.webmanifest",
+  "./", "index.html", "css/estilos.css", "js/config.js", "js/datos.js", "js/creditos-arboles.js", "js/arboles.js", "js/app.js", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "icons/apple-touch-icon.png",
   ...Object.entries(FOTOS).flatMap(([id, extra]) => ["planta", "hoja", ...extra].map((t) => `img/${id}-${t}.jpg`)),
 ];

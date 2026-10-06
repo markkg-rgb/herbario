@@ -1012,7 +1012,7 @@
     const etiquetas = [
       sabida && `<span class="etiqueta-estado si">Te la sabes</span>`,
       e.autoctona && `<span class="etiqueta-estado">Autóctona</span>`,
-      e.follaje && `<span class="etiqueta-estado neutra">Hoja ${e.follaje === "caduco" ? "caduca" : "perenne"}</span>`,
+      e.follaje && `<span class="etiqueta-estado neutra">Hoja ${({ caduco: "caduca", semicaduco: "semicaduca" })[e.follaje] || "perenne"}</span>`,
       e.grupo && `<span class="etiqueta-estado neutra">${esc(e.grupo)}</span>`,
     ].filter(Boolean).join("");
 
@@ -2570,7 +2570,7 @@
         <datalist id="lista-grupos">${grupos().map((g) => `<option value="${esc(g)}">`).join("")}</datalist>
         <label>Familia<input name="familia" value="${val(e.familia)}"></label>
         <label>Tipo de hoja<select name="tipoHoja">${opciones(["", "pinnada", "palmeada", "costapalmeada", "simple", "compuesta", "acicular", "escamosa"], e.tipoHoja)}</select></label>
-        <label>Follaje<select name="follaje">${opciones(["", "perenne", "caduco"], e.follaje)}</select></label>
+        <label>Follaje<select name="follaje">${opciones(["", "perenne", "caduco", "semicaduco"], e.follaje)}</select></label>
         <label>Cómo trepa <small>(trepadoras)</small><input name="trepa" value="${val(e.trepa)}"></label>
         <label>Altura<input name="altura" value="${val(e.altura)}" placeholder="p. ej. 10–15 m"></label>
         <label>Resistencia al frío<input name="rusticidad" value="${val(e.rusticidad)}" placeholder="p. ej. Hasta −8 °C"></label>
